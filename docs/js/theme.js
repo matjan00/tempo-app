@@ -2,7 +2,7 @@
 import * as store from './store.js';
 
 export const ACCENTS = {
-  coral: { name: 'Coral', c: '#ff5d47', ink: '#ffffff' },
+  coral: { name: 'Red', c: '#ff2d2d', ink: '#ffffff' },
   amber: { name: 'Amber', c: '#f2a31b', ink: '#1a1a1a' },
   green: { name: 'Green', c: '#2fa56b', ink: '#ffffff' },
   blue: { name: 'Blue', c: '#3e7bfa', ink: '#ffffff' },
@@ -26,7 +26,7 @@ export function applyTheme() {
   if (s.accent === 'mono') a = theme === 'dark' ? { c: '#f2f2f3', ink: '#111113' } : { c: '#18181b', ink: '#ffffff' };
   root.style.setProperty('--accent', a.c);
   root.style.setProperty('--accent-ink', a.ink);
-  const bg = theme === 'dark' ? '#0d0d0f' : '#f6f5f2';
+  const bg = theme === 'dark' ? '#111111' : '#ededed';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', bg);
   try {
     localStorage.setItem('tempo.theme', JSON.stringify({ theme, accent: a.c, ink: a.ink }));

@@ -208,7 +208,7 @@ function seed(s) {
   const b = newBlock;
   s.pages.push({
     id: uid(),
-    title: 'Welcome to Tempo',
+    title: 'welcome to to-do',
     icon: '👋',
     pinned: true,
     created: Date.now(),

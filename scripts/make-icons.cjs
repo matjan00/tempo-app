@@ -36,7 +36,7 @@ function png(size, pixel) {
 }
 
 // Design: near-black rounded square, a coral progress ring (3/4 arc, round caps) with a dot in the middle.
-const BG = [13, 13, 15], ACC = [255, 93, 71], TRACK = [38, 38, 43];
+const BG = [237, 237, 237], ACC = [255, 45, 45], TRACK = [17, 17, 17];
 function make(size, { maskable, rounded }) {
   const SS = 3; // supersampling
   return png(size, (px, py) => {
@@ -64,7 +64,7 @@ function make(size, { maskable, rounded }) {
             return Math.hypot(x / (scale * 0.5) - cx, y / (scale * 0.5) - cy) <= w / 2;
           };
           if (capAt(0) || capAt(0.74 * Math.PI * 2)) col = ACC;
-          if (d <= 0.2) col = ACC;
+          if (d <= 0.2) col = TRACK;
         }
         if (col) { rr += col[0]; gg += col[1]; bb += col[2]; aa += 255; }
       }

@@ -62,7 +62,7 @@ function html() {
       <button class="btn danger set-btn" data-act="reset">Reset everything</button>
     </div>
     <h4 class="set-h">About</h4>
-    <div class="set-card"><div class="set-row"><span>Tempo</span><span class="set-ver">v${esc(VERSION)}</span></div>${install}</div>
+    <div class="set-card"><div class="set-row"><span>to-do</span><span class="set-ver">v${esc(VERSION)}</span></div>${install}</div>
   </div>`;
 }
 
@@ -97,7 +97,7 @@ function doExport() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `tempo-backup-${ymd()}.json`;
+  a.download = `todo-backup-${ymd()}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -137,11 +137,11 @@ export function openSettings() {
     else if (act === 'import') body.querySelector('[data-file]').click();
     else if (act === 'install') runInstall();
     else if (act === 'testpush') {
-      await push.schedule(Date.now() + 10000, 'Tempo test', 'If you see this, locked-phone alarms work.');
+      await push.schedule(Date.now() + 10000, 'to-do test', 'If you see this, locked-phone alarms work.');
       toast('Lock your phone now. It should ring in about 10–20 seconds.', { ms: 6000 });
     }
     else if (act === 'reset') {
-      const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset Tempo?' });
+      const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset to-do?' });
       if (ok) {
         try {
           localStorage.removeItem('tempo.v1');

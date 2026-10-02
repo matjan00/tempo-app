@@ -43,7 +43,7 @@ export function render(root) {
       <div><div class="eyebrow">${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</div><h1>${greeting()}</h1></div>
       <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('sliders', 22)}</button>
     </header>
-    ${!isStandalone() && !bannerHidden() ? `<div class="install-banner"><div>${icon('download', 20)}<span><b>Install Tempo</b><small>Add it to your home screen</small></span></div><button class="btn primary" data-act="install">Install</button><button class="icon-btn" data-act="hideInstall" aria-label="Dismiss">${icon('x', 18)}</button></div>` : ''}
+    ${!isStandalone() && !bannerHidden() ? `<div class="install-banner"><div>${icon('download', 20)}<span><b>install to-do</b><small>Add it to your home screen</small></span></div><button class="btn primary" data-act="install">Install</button><button class="icon-btn" data-act="hideInstall" aria-label="Dismiss">${icon('x', 18)}</button></div>` : ''}
     <div class="hero card">
       ${ring(doneToday.length, total)}
       <div class="hero-t"><div class="big">${doneToday.length}<span> of ${total} done</span></div>

@@ -37,9 +37,9 @@ export async function install() {
 function showHelp() {
   const steps = isIos()
     ? ['Open this page in <b>Safari</b>.', 'Tap the <b>Share</b> button.', 'Choose <b>Add to Home Screen</b>, then <b>Add</b>.']
-    : ['Open this page in <b>Chrome</b> (not inside another app such as Instagram or Messenger).', 'Tap the <b>⋮</b> menu at the top right.', 'Tap <b>Install app</b> (or <b>Add to Home screen</b>).', 'Confirm with <b>Install</b>. Tempo appears on your home screen.'];
+    : ['Open this page in <b>Chrome</b> (not inside another app such as Instagram or Messenger).', 'Tap the <b>⋮</b> menu at the top right.', 'Tap <b>Install app</b> (or <b>Add to Home screen</b>).', 'Confirm with <b>Install</b>. to-do appears on your home screen.'];
   const rec = openSheet(
-    `<h2 class="sh">Install Tempo</h2>
+    `<h2 class="sh">install to-do</h2>
      <ol class="install-steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
      <p class="muted sm">If you don't see the option, reload the page once and try again.</p>
      <button class="btn primary" style="width:100%;margin-top:14px" data-close>Got it</button>`,

@@ -102,7 +102,7 @@ setInterval(() => {
   timer.tick();
   if (tab === 'focus') focus.tickUI();
   const v = timer.view();
-  const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode]}` : 'Tempo';
+  const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode]}` : 'to-do';
   if (title !== lastTitle) document.title = lastTitle = title;
 }, 250);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (timer.tick(), tab === 'focus' && focus.tickUI()));

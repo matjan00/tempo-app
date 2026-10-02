@@ -129,9 +129,9 @@ function nextLabel() {
   const t = st.timer;
   if (t.mode === 'focus') {
     const long = t.cycle + 1 >= st.settings.every;
-    return ['Focus session done', `${st.settings.focus} min logged. Time for a ${long ? 'long' : 'short'} break.`];
+    return ['focus session done', `${st.settings.focus} min logged. time for a ${long ? 'long' : 'short'} break.`];
   }
-  return ['Break over', 'Ready for the next focus session?'];
+  return ['break over', 'ready for the next focus session?'];
 }
 export function syncPush() {
   const t = store.get().timer;
@@ -224,10 +224,10 @@ export const skip = () => advance(false, Date.now());
 
 function alertUser(wasFocus, next, logged) {
   const s = store.get().settings;
-  const title = wasFocus ? 'Focus session done' : 'Break over';
+  const title = wasFocus ? 'focus session done' : 'break over';
   const body = wasFocus
-    ? `${fmtMin(logged)} logged. Time for a ${next === 'long' ? 'long' : 'short'} break.`
-    : 'Ready for the next focus session?';
+    ? `${fmtMin(logged)} logged. time for a ${next === 'long' ? 'long' : 'short'} break.`
+    : 'ready for the next focus session?';
   if (s.sound) chime();
   if (s.vibrate) navigator.vibrate?.([220, 120, 220, 120, 420]);
   toast(`${title} — ${body}`, { ms: 6000 });
