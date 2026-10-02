@@ -1,0 +1,104 @@
+// Bottom sheets / full-screen layers, toasts and confirm dialogs.
+// Sheets push a history entry so the phone's Back gesture closes them instead of leaving the app.
+import { icon } from './icons.js';
+import { esc } from './util.js';
+
+const layers = document.getElementById('layers');
+const toasts = document.getElementById('toasts');
+const stack = [];
+let ignorePops = 0;
+
+function flushHistory() {
+  if (ignorePops > 0) return;
+  for (const r of stack)
+    if (!r.pushed) {
+      history.pushState({ sheet: 1 }, '');
+      r.pushed = true;
+    }
+}
+
+export function openSheet(html, { full = false, cls = '', onClose } = {}) {
+  const el = document.createElement('div');
+  el.className = `overlay ${full ? 'full' : ''} ${cls}`;
+  el.innerHTML = `<div class="backdrop"></div><div class="panel" role="dialog" aria-modal="true">${full ? '' : '<div class="grab"></div>'}<div class="panel-body">${html}</div></div>`;
+  layers.appendChild(el);
+  const rec = { el, body: el.querySelector('.panel-body'), onClose, pushed: false, closed: false };
+  rec.close = () => closeRec(rec, false);
+  stack.push(rec);
+  flushHistory();
+  el.querySelector('.backdrop').addEventListener('click', rec.close);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  return rec;
+}
+
+function closeRec(rec, fromPop) {
+  if (rec.closed) return;
+  rec.closed = true;
+  const i = stack.indexOf(rec);
+  if (i >= 0) stack.splice(i, 1);
+  rec.el.classList.remove('in');
+  setTimeout(() => rec.el.remove(), 260);
+  try {
+    rec.onClose?.();
+  } catch (e) {
+    console.error(e);
+  }
+  if (!fromPop && rec.pushed) {
+    ignorePops++;
+    history.back();
+  }
+}
+
+addEventListener('popstate', () => {
+  if (ignorePops > 0) {
+    ignorePops--;
+    flushHistory();
+    return;
+  }
+  const top = stack[stack.length - 1];
+  if (top) {
+    top.pushed = false;
+    closeRec(top, true);
+  }
+});
+
+export const closeAll = () => [...stack].reverse().forEach((r) => r.close());
+
+export function toast(msg, { action, onAction, ms = 3400 } = {}) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action)}</button>` : ''}`;
+  toasts.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in'));
+  const kill = () => {
+    el.classList.remove('in');
+    setTimeout(() => el.remove(), 250);
+  };
+  el.querySelector('button')?.addEventListener('click', () => {
+    onAction?.();
+    kill();
+  });
+  setTimeout(kill, ms);
+}
+
+export function confirmDialog(message, { ok = 'Delete', danger = true, title = 'Are you sure?' } = {}) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const rec = openSheet(
+      `<div class="confirm"><h3>${esc(title)}</h3><p>${esc(message)}</p>
+        <div class="row-btns"><button class="btn ghost" data-r="0">Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${esc(ok)}</button></div></div>`,
+      { cls: 'small', onClose: () => !answered && resolve(false) }
+    );
+    rec.body.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-r]');
+      if (!b) return;
+      answered = true;
+      resolve(b.dataset.r === '1');
+      rec.close();
+    });
+  });
+}
+
+export const sheetHeader = (title, right = '') =>
+  `<div class="sheet-head"><h2>${esc(title)}</h2><div>${right}</div></div>`;
+export const closeBtn = () => `<button class="icon-btn" data-close aria-label="Close">${icon('x', 20)}</button>`;
