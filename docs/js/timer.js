@@ -3,6 +3,7 @@
 import * as store from './store.js';
 import { uid, fmtMin } from './util.js';
 import { toast } from './ui.js';
+import * as push from './push.js';
 
 const MODES = ['focus', 'short', 'long'];
 export const MODE_LABEL = { focus: 'Focus', short: 'Short break', long: 'Long break' };
@@ -119,6 +120,25 @@ document.addEventListener('visibilitychange', syncWake);
 export function sync() {
   syncNoise();
   syncWake();
+  syncPush();
+}
+
+// ---------- locked-phone alarm (server push) ----------
+function nextLabel() {
+  const st = store.get();
+  const t = st.timer;
+  if (t.mode === 'focus') {
+    const long = t.cycle + 1 >= st.settings.every;
+    return ['Focus session done', `${st.settings.focus} min logged. Time for a ${long ? 'long' : 'short'} break.`];
+  }
+  return ['Break over', 'Ready for the next focus session?'];
+}
+export function syncPush() {
+  const t = store.get().timer;
+  if (t.running) {
+    const [title, body] = nextLabel();
+    push.schedule(t.endAt, title, body);
+  } else push.cancel();
 }
 
 // ---------- controls ----------

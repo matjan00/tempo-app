@@ -4,6 +4,7 @@ import * as theme from './theme.js';
 import { openSheet, sheetHeader, closeBtn, confirmDialog, toast } from './ui.js';
 import { esc, ymd } from './util.js';
 import { VERSION } from './version.js';
+import * as push from './push.js';
 import { install as runInstall, isStandalone, onInstallChange } from './install.js';
 
 let current = null; // open sheet record
@@ -23,7 +24,7 @@ const TOGGLES = [
   { k: 'sound', label: 'Sound' },
   { k: 'vibrate', label: 'Vibrate' },
   { k: 'keepAwake', label: 'Keep screen on while running' },
-  { k: 'notify', label: 'Notifications', hint: 'Phones may delay or skip alerts when the app is closed or in the background. Keep Tempo open during a session for reliable timing.' },
+  { k: 'notify', label: 'Ring when phone is locked', hint: 'Sends a notification at the exact end time, even if Tempo is closed. Needs notification permission; make sure the phone is not on silent.' },
 ];
 
 const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
@@ -44,6 +45,7 @@ function html() {
   const tog = TOGGLES.map(
     (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
   ).join('');
+  const test = push.enabled() ? `<button class="btn ghost set-btn" data-act="testpush">Test: ring in 10 seconds</button>` : push.configured() ? '' : `<p class="set-hint">Locked-phone alarm is not set up yet.</p>`;
   const install = isStandalone() ? '' : `<button class="btn primary set-btn" data-act="install">Install app</button>`;
   return `${sheetHeader('Settings', closeBtn())}
   <div class="set-body">
@@ -51,7 +53,7 @@ function html() {
     <div class="set-card"><div class="set-seg">${seg}</div><div class="set-swatches">${sw}</div></div>
     <h4 class="set-h">Timer</h4>
     <div class="set-card">${steps}</div>
-    <div class="set-card">${tog}</div>
+    <div class="set-card">${tog}${test}</div>
     <h4 class="set-h">Data</h4>
     <div class="set-card">
       <p class="set-hint">Everything is stored only on this phone. Export a backup now and then.</p>
@@ -134,6 +136,10 @@ export function openSettings() {
     if (act === 'export') doExport();
     else if (act === 'import') body.querySelector('[data-file]').click();
     else if (act === 'install') runInstall();
+    else if (act === 'testpush') {
+      await push.schedule(Date.now() + 10000, 'Tempo test', 'If you see this, locked-phone alarms work.');
+      toast('Lock your phone now. It should ring in about 10–20 seconds.', { ms: 6000 });
+    }
     else if (act === 'reset') {
       const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset Tempo?' });
       if (ok) {
@@ -157,16 +163,20 @@ export function openSettings() {
     if (!t) return;
     const k = t.dataset.tog;
     if (k === 'notify' && t.checked) {
-      let perm = 'denied';
-      try {
-        perm = 'Notification' in window ? await Notification.requestPermission() : 'denied';
-      } catch {}
-      if (perm !== 'granted') {
+      let ok = false;
+      if (push.supported()) ok = await push.enable();
+      else {
+        try {
+          ok = 'Notification' in window && (await Notification.requestPermission()) === 'granted';
+        } catch {}
+      }
+      if (!ok) {
         set('notify', false);
-        toast('Notifications are blocked or unsupported on this device');
+        toast(push.supported() ? 'Notifications are blocked. Allow them in your phone settings for this site.' : 'Notifications are not available on this device yet.');
         return draw();
       }
     }
+    if (k === 'notify' && !t.checked) push.disable();
     set(k, t.checked);
   });
 }
