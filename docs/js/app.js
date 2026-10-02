@@ -2,7 +2,7 @@ import * as store from './store.js';
 import * as timer from './timer.js';
 import { applyTheme } from './theme.js';
 import { icon } from './icons.js';
-import { setInstallPrompt } from './settings.js';
+import { onInstallChange } from './install.js';
 import * as today from './today.js';
 import * as tasks from './tasks.js';
 import * as focus from './focus.js';
@@ -89,6 +89,8 @@ document.addEventListener('tempo:focus-task', (e) => {
 document.addEventListener('focusin', (e) => e.target.classList?.contains('qa-input') && document.body.classList.add('typing'));
 document.addEventListener('focusout', (e) => e.target.classList?.contains('qa-input') && setTimeout(() => !document.activeElement?.classList?.contains('qa-input') && document.body.classList.remove('typing'), 50));
 
+onInstallChange(() => store.emit());
+
 store.subscribe(() => {
   applyTheme();
   render();
@@ -105,11 +107,6 @@ setInterval(() => {
 }, 250);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (timer.tick(), tab === 'focus' && focus.tickUI()));
 
-// Install prompt (Android Chrome)
-addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  setInstallPrompt(e);
-});
 
 // Service worker (offline + installable). Reload once when a new version takes over.
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

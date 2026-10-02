@@ -2,9 +2,11 @@ import * as store from './store.js';
 import { taskRow, handleTaskClick, composer, bindComposer } from './components.js';
 import { openSettings } from './settings.js';
 import { icon } from './icons.js';
+import { install, isStandalone } from './install.js';
 import { todayStr, DAYS, MONTHS, fmtMin, addDays } from './util.js';
 
 let showDone = false;
+const bannerHidden = () => { try { return localStorage.getItem('tempo.hideInstall') === '1'; } catch { return false; } };
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -41,6 +43,7 @@ export function render(root) {
       <div><div class="eyebrow">${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</div><h1>${greeting()}</h1></div>
       <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('sliders', 22)}</button>
     </header>
+    ${!isStandalone() && !bannerHidden() ? `<div class="install-banner"><div>${icon('download', 20)}<span><b>Install Tempo</b><small>Add it to your home screen</small></span></div><button class="btn primary" data-act="install">Install</button><button class="icon-btn" data-act="hideInstall" aria-label="Dismiss">${icon('x', 18)}</button></div>` : ''}
     <div class="hero card">
       ${ring(doneToday.length, total)}
       <div class="hero-t"><div class="big">${doneToday.length}<span> of ${total} done</span></div>
@@ -59,6 +62,8 @@ export function render(root) {
     if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'settings') openSettings();
+    if (a === 'install') install();
+    if (a === 'hideInstall') { try { localStorage.setItem('tempo.hideInstall', '1'); } catch {} render(root); }
     if (a === 'toggleDone') (showDone = !showDone), render(root);
     if (a === 'plan') store.updateTask(e.target.closest('.pull').dataset.id, { due: today });
   };

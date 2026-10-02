@@ -286,3 +286,12 @@ body.zen .focus .top .eyebrow, body.zen .focus .top [data-act=settings] { displa
 .toast button { font-weight: 700; color: var(--accent); filter: brightness(1.15); }
 
 @media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+
+/* install banner + help */
+.install-banner { display: flex; align-items: center; gap: 10px; padding: 12px 8px 12px 16px; margin-bottom: 14px; border-radius: var(--r); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.install-banner > div { flex: 1; display: flex; align-items: center; gap: 12px; color: var(--accent); min-width: 0; }
+.install-banner span { display: flex; flex-direction: column; color: var(--text); line-height: 1.25; }
+.install-banner small { color: var(--muted); font-size: 13px; }
+.install-banner .btn { padding: 9px 16px; font-size: 15px; }
+.install-steps { padding-left: 22px; margin: 4px 0 14px; line-height: 1.6; }
+.install-steps li { margin-bottom: 8px; }

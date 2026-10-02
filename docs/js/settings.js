@@ -4,14 +4,11 @@ import * as theme from './theme.js';
 import { openSheet, sheetHeader, closeBtn, confirmDialog, toast } from './ui.js';
 import { esc, ymd } from './util.js';
 import { VERSION } from './version.js';
+import { install as runInstall, isStandalone, onInstallChange } from './install.js';
 
-let installEvt = null;
 let current = null; // open sheet record
 
-export function setInstallPrompt(evt) {
-  installEvt = evt;
-  if (current && !current.closed) draw();
-}
+onInstallChange(() => current && !current.closed && draw());
 
 const STEPPERS = [
   { k: 'focus', label: 'Focus', min: 5, max: 90, step: 5, unit: 'min' },
@@ -31,8 +28,6 @@ const TOGGLES = [
 
 const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
 function html() {
   const s = store.get().settings;
@@ -49,9 +44,7 @@ function html() {
   const tog = TOGGLES.map(
     (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
   ).join('');
-  let install = '';
-  if (installEvt) install = `<button class="btn primary set-btn" data-act="install">Install app</button>`;
-  else if (isIos() && !isStandalone()) install = `<p class="set-hint">To install on iPhone: tap Share, then "Add to Home Screen".</p>`;
+  const install = isStandalone() ? '' : `<button class="btn primary set-btn" data-act="install">Install app</button>`;
   return `${sheetHeader('Settings', closeBtn())}
   <div class="set-body">
     <h4 class="set-h">Appearance</h4>
@@ -140,15 +133,8 @@ export function openSettings() {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'export') doExport();
     else if (act === 'import') body.querySelector('[data-file]').click();
-    else if (act === 'install' && installEvt) {
-      const evt = installEvt;
-      installEvt = null;
-      try {
-        evt.prompt();
-        await evt.userChoice;
-      } catch {}
-      draw();
-    } else if (act === 'reset') {
+    else if (act === 'install') runInstall();
+    else if (act === 'reset') {
       const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset Tempo?' });
       if (ok) {
         try {

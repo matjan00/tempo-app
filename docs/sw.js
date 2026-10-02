@@ -1,7 +1,7 @@
 // Offline cache. Bump VERSION (scripts/release.cjs does it) so phones replace their saved copy.
-const VERSION = 'tempo-v2';
+const VERSION = 'tempo-v3';
 // FILES-START
-const FILES = ["./","css/app.css","css/notes.css","css/settings.css","css/stats.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/focus.js","js/icons.js","js/notes.js","js/parse.js","js/settings.js","js/stats.js","js/store.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
+const FILES = ["./","css/app.css","css/notes.css","css/settings.css","css/stats.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/focus.js","js/icons.js","js/install.js","js/notes.js","js/parse.js","js/settings.js","js/stats.js","js/store.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
 // FILES-END
 
 self.addEventListener('install', (e) => {
