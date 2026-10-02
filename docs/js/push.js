@@ -13,8 +13,14 @@ const toKey = (b64) => {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 };
 
+async function registration() {
+  const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 6000))]);
+  if (!reg) throw new Error('The app is still starting up. Close and reopen Tempo, then try again.');
+  return reg;
+}
+
 async function subscription(create) {
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await registration();
   let sub = await reg.pushManager.getSubscription();
   if (!sub && create) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(VAPID_PUBLIC_KEY) });
   return sub;
@@ -25,15 +31,17 @@ async function call(payload) {
   if (!res.ok) throw new Error('push ' + res.status);
 }
 
-// Ask permission + subscribe. Returns true when the phone is ready to be woken.
+// Ask permission + subscribe. Returns { ok: true } or { ok: false, why: 'plain-language reason' }.
 export async function enable() {
-  if (!supported()) return false;
+  if (!supported()) return { ok: false, why: 'This browser cannot receive push alerts. Open Tempo in Chrome.' };
+  if (Notification.permission === 'denied') return { ok: false, why: 'Notifications are blocked for Tempo. Allow them: Chrome menu → Settings → Site settings → Notifications.' };
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') return false;
-    return !!(await subscription(true));
-  } catch {
-    return false;
+    if (perm !== 'granted') return { ok: false, why: 'Notification permission was not granted.' };
+    await subscription(true);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, why: `Could not subscribe: ${e?.message || e}` };
   }
 }
 

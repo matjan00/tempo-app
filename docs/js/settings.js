@@ -164,15 +164,19 @@ export function openSettings() {
     const k = t.dataset.tog;
     if (k === 'notify' && t.checked) {
       let ok = false;
-      if (push.supported()) ok = await push.enable();
-      else {
+      let why = 'Notifications are not available on this device yet.';
+      if (push.supported()) {
+        const r = await push.enable();
+        ok = r.ok;
+        why = r.why || why;
+      } else {
         try {
           ok = 'Notification' in window && (await Notification.requestPermission()) === 'granted';
         } catch {}
       }
       if (!ok) {
         set('notify', false);
-        toast(push.supported() ? 'Notifications are blocked. Allow them in your phone settings for this site.' : 'Notifications are not available on this device yet.');
+        toast(why, { ms: 9000 });
         return draw();
       }
     }
