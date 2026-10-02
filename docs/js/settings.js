@@ -112,7 +112,7 @@ export function openSettings() {
 
   body.addEventListener('click', async (e) => {
     if (e.target.closest('[data-close]')) return rec.close();
-    const th = e.target.closest('[data-theme]');
+    const th = e.target.closest('button[data-theme]');
     if (th) {
       set('theme', th.dataset.theme);
       theme.applyTheme();
