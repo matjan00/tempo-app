@@ -27,7 +27,13 @@ export function openSheet(html, { full = false, cls = '', onClose } = {}) {
   stack.push(rec);
   flushHistory();
   el.querySelector('.backdrop').addEventListener('click', rec.close);
+  const panel = el.querySelector('.panel');
+  panel.tabIndex = -1;
+  // a [data-close] button anywhere in the sheet closes it
+  rec.body.addEventListener('click', (e) => e.target.closest('[data-close]') && rec.close());
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  // move focus into the sheet (screen readers / keyboards) unless the sheet already focused a field
+  setTimeout(() => !rec.closed && !panel.contains(document.activeElement) && panel.focus({ preventScroll: true }), 30);
   return rec;
 }
 
@@ -63,22 +69,42 @@ addEventListener('popstate', () => {
 });
 
 export const closeAll = () => [...stack].reverse().forEach((r) => r.close());
+export const topSheet = () => stack[stack.length - 1] || null;
 
-export function toast(msg, { action, onAction, ms = 3400 } = {}) {
+// Escape closes the top sheet (keyboards / desktop).
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  const top = topSheet();
+  if (top) {
+    e.preventDefault();
+    top.close();
+  }
+});
+
+// Toasts: newest on top of the stack, at most 3 at once. With an action (e.g. "undo") they stay a bit longer.
+export function toast(msg, { action, onAction, ms } = {}) {
+  ms ??= action ? 5000 : 3400;
+  while (toasts.children.length >= 3) toasts.firstElementChild.remove();
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action)}</button>` : ''}`;
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action)}</button>` : ''}`;
   toasts.appendChild(el);
   requestAnimationFrame(() => el.classList.add('in'));
+  let dead = false;
   const kill = () => {
+    if (dead) return;
+    dead = true;
     el.classList.remove('in');
     setTimeout(() => el.remove(), 250);
   };
   el.querySelector('button')?.addEventListener('click', () => {
+    if (dead) return;
     onAction?.();
     kill();
   });
   setTimeout(kill, ms);
+  return kill;
 }
 
 export function confirmDialog(message, { ok = 'Delete', danger = true, title = 'Are you sure?' } = {}) {

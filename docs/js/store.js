@@ -40,15 +40,49 @@ function load() {
   return seed(fresh());
 }
 
+const arr = (x) => (Array.isArray(x) ? x : []);
+const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+
+// Make sure every saved record has the fields the screens expect (old saves and imported backups
+// may miss some). Only fills gaps — never changes values that are already there.
 function migrate(s) {
+  if (!isObj(s)) s = {};
   const f = fresh();
-  const out = { ...f, ...s, settings: { ...f.settings, ...(s.settings || {}) }, timer: { ...f.timer, ...(s.timer || {}) } };
-  for (const k of ['tasks', 'projects', 'pages', 'sessions']) if (!Array.isArray(out[k])) out[k] = [];
+  const out = { ...f, ...s, settings: { ...f.settings, ...(isObj(s.settings) ? s.settings : {}) }, timer: { ...f.timer, ...(isObj(s.timer) ? s.timer : {}) } };
+  for (const k of ['tasks', 'projects', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
+  out.tasks = out.tasks.map((t) => {
+    const n = { ...newTask(), id: t.id || uid(), ...t };
+    n.title = String(n.title ?? '');
+    n.notes = String(n.notes ?? '');
+    n.tags = arr(n.tags).map(String);
+    n.sub = arr(n.sub).filter(isObj).map((x) => ({ id: x.id || uid(), t: String(x.t ?? ''), d: !!x.d }));
+    n.prio = [0, 1, 2, 3].includes(n.prio) ? n.prio : 0;
+    n.est = Number(n.est) || 0;
+    n.pomos = Number(n.pomos) || 0;
+    n.focusMin = Number(n.focusMin) || 0;
+    if (n.status !== 'doing') n.status = 'todo';
+    return n;
+  });
+  out.pages = out.pages.map((p) => {
+    const n = { title: '', icon: '📄', pinned: false, created: Date.now(), updated: Date.now(), ...p, id: p.id || uid() };
+    n.title = String(n.title ?? '');
+    n.blocks = arr(n.blocks).filter(isObj).map((x) => ({ ...newBlock(), ...x, id: x.id || uid(), text: String(x.text ?? '') }));
+    if (!n.blocks.length) n.blocks.push(newBlock());
+    return n;
+  });
+  out.projects = out.projects.map((p) => ({ name: '', color: '#8b8b93', ...p, id: p.id || uid() }));
+  out.sessions = out.sessions.filter((x) => Number.isFinite(x.end)).map((x) => ({ ...x, min: Number(x.min) || 0 }));
+  const t = out.timer;
+  if (!['focus', 'short', 'long'].includes(t.mode)) t.mode = 'focus';
+  if (t.running && !Number.isFinite(t.endAt)) Object.assign(t, { running: false, endAt: null, remaining: null });
+  t.cycle = Number(t.cycle) || 0;
   return out;
 }
 
 let saveTimer;
+let frozen = false; // set by resetAll(): stop writing so the wipe is not undone on the way out
 function write() {
+  if (frozen) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch (e) {
@@ -81,6 +115,16 @@ export function replaceAll(data) {
   state = migrate(data);
   flush();
   emit();
+}
+
+// Erase everything and start fresh. Writes are frozen first: otherwise the pending save and the
+// pagehide/visibilitychange flush would put the old data right back while the page reloads.
+export function resetAll() {
+  clearTimeout(saveTimer);
+  frozen = true;
+  try {
+    localStorage.removeItem(KEY);
+  } catch {}
 }
 
 // ---------- tasks ----------
@@ -119,17 +163,28 @@ export function updateTask(id, patch, silent = false) {
   }, silent);
 }
 
-function nextDue(t) {
-  const today = todayStr();
-  const base = t.due && t.due > today ? t.due : today;
-  const d = parseYmd(base);
-  if (t.repeat === 'daily') d.setDate(d.getDate() + 1);
-  else if (t.repeat === 'weekly') d.setDate(d.getDate() + 7);
-  else if (t.repeat === 'monthly') d.setMonth(d.getMonth() + 1);
-  else if (t.repeat === 'weekdays') {
-    do d.setDate(d.getDate() + 1);
-    while (d.getDay() === 0 || d.getDay() === 6);
-  }
+const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
+
+// Next date for a repeating task. Steps from the task's own due date (so a weekly Monday task stays
+// on Mondays even when it is finished late) until the date is after today.
+export function nextDue(t, today = todayStr()) {
+  const start = t.due || today;
+  const anchorDay = t.repeatDay || parseYmd(start).getDate(); // monthly: keep "the 31st" as the target day
+  let d = parseYmd(start);
+  const step = () => {
+    if (t.repeat === 'daily') d.setDate(d.getDate() + 1);
+    else if (t.repeat === 'weekly') d.setDate(d.getDate() + 7);
+    else if (t.repeat === 'monthly') {
+      const y = d.getFullYear(), m = d.getMonth() + 1;
+      d = new Date(y, m, Math.min(anchorDay, daysIn(y, m)));
+    } else if (t.repeat === 'weekdays') {
+      do d.setDate(d.getDate() + 1);
+      while (d.getDay() === 0 || d.getDay() === 6);
+    } else d.setDate(d.getDate() + 1);
+  };
+  let guard = 0;
+  do step();
+  while (ymd(d) <= today && ++guard < 5000);
   return ymd(d);
 }
 
@@ -141,7 +196,7 @@ export function setDone(id, done) {
     t.doneAt = done ? Date.now() : null;
     t.status = 'todo';
     if (done && t.repeat) {
-      s.tasks.unshift({
+      const next = {
         ...t,
         id: uid(),
         done: false,
@@ -151,16 +206,46 @@ export function setDone(id, done) {
         focusMin: 0,
         created: Date.now(),
         sub: t.sub.map((x) => ({ ...x, id: uid(), d: false })),
-      });
+      };
+      if (t.repeat === 'monthly') next.repeatDay = t.repeatDay || parseYmd(t.due || todayStr()).getDate();
+      delete next.nextId;
+      s.tasks.unshift(next);
+      t.nextId = next.id; // lets "undo" take the new copy back
       t.repeat = null; // the finished copy stays in history without repeating
+    }
+    if (!done && t.nextId) {
+      // Undo of a repeating task: remove the copy that was created (if it is still untouched) and repeat again.
+      const copy = s.tasks.find((x) => x.id === t.nextId);
+      if (copy && !copy.done) {
+        t.repeat = copy.repeat;
+        if (copy.repeatDay) t.repeatDay = copy.repeatDay;
+        s.tasks = s.tasks.filter((x) => x !== copy);
+        if (s.timer.taskId === copy.id) s.timer.taskId = t.id;
+      }
+      delete t.nextId;
     }
   });
 }
 
 export function deleteTask(id) {
+  let snap = null;
   mutate((s) => {
-    s.tasks = s.tasks.filter((t) => t.id !== id);
-    if (s.timer.taskId === id) s.timer.taskId = null;
+    const i = s.tasks.findIndex((t) => t.id === id);
+    if (i < 0) return;
+    snap = { task: s.tasks[i], index: i, wasTimer: s.timer.taskId === id };
+    s.tasks.splice(i, 1);
+    if (snap.wasTimer) s.timer.taskId = null;
+  });
+  return snap;
+}
+
+// Put a deleted task back where it was (used by "undo").
+export function restoreTask(snap) {
+  if (!snap) return;
+  mutate((s) => {
+    if (s.tasks.some((t) => t.id === snap.task.id)) return;
+    s.tasks.splice(Math.min(snap.index, s.tasks.length), 0, snap.task);
+    if (snap.wasTimer && !s.timer.taskId) s.timer.taskId = snap.task.id;
   });
 }
 
@@ -174,9 +259,23 @@ export function updateProject(id, patch) {
   mutate((s) => Object.assign(s.projects.find((p) => p.id === id) || {}, patch));
 }
 export function deleteProject(id) {
+  let snap = null;
   mutate((s) => {
-    s.projects = s.projects.filter((p) => p.id !== id);
+    const i = s.projects.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    snap = { project: s.projects[i], index: i, tasks: s.tasks.filter((t) => t.project === id).map((t) => t.id) };
+    s.projects.splice(i, 1);
     s.tasks.forEach((t) => t.project === id && (t.project = null));
+  });
+  return snap;
+}
+export function restoreProject(snap) {
+  if (!snap) return;
+  mutate((s) => {
+    if (s.projects.some((p) => p.id === snap.project.id)) return;
+    s.projects.splice(Math.min(snap.index, s.projects.length), 0, snap.project);
+    const ids = new Set(snap.tasks);
+    s.tasks.forEach((t) => ids.has(t.id) && !t.project && (t.project = snap.project.id));
   });
 }
 
@@ -190,7 +289,21 @@ export function addPage(p = {}) {
 }
 export const getPage = (id) => state.pages.find((p) => p.id === id);
 export function deletePage(id) {
-  mutate((s) => (s.pages = s.pages.filter((p) => p.id !== id)));
+  let snap = null;
+  mutate((s) => {
+    const i = s.pages.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    snap = { page: s.pages[i], index: i };
+    s.pages.splice(i, 1);
+  });
+  return snap;
+}
+export function restorePage(snap) {
+  if (!snap) return;
+  mutate((s) => {
+    if (s.pages.some((p) => p.id === snap.page.id)) return;
+    s.pages.splice(Math.min(snap.index, s.pages.length), 0, snap.page);
+  });
 }
 
 // ---------- seed data for a first launch ----------
@@ -201,7 +314,8 @@ function seed(s) {
   const t = todayStr();
   s.tasks.push(
     newTask({ title: 'Try a 25 min focus session', due: t, prio: 2, est: 1, project: personal.id }),
-    newTask({ title: 'Tap me to open details, tap the circle to finish', due: t, sub: [{ id: uid(), t: 'Add a due date', d: false }, { id: uid(), t: 'Add a subtask', d: false }] }),
+    newTask({ title: 'Tap me to open details, tap the square to finish', due: t, sub: [{ id: uid(), t: 'Add a due date', d: false }, { id: uid(), t: 'Add a subtask', d: false }] }),
+    newTask({ title: 'Press and hold a task to reschedule or delete it', due: addDays(t, 1) }),
     newTask({ title: 'Plan the week', due: addDays(t, 1), project: work.id, repeat: 'weekly' }),
     newTask({ title: 'Anything without a date lives in your Inbox' })
   );
@@ -222,6 +336,7 @@ function seed(s) {
       b('h2', 'Quick add for tasks'),
       b('todo', 'Write: call mom tomorrow !1 #family  — date, priority and tag are picked up automatically'),
       b('todo', 'Write: gym every weekday *1  — repeats and plans one pomodoro'),
+      b('todo', 'Picked up a word by mistake (like "sat" in a title)? Tap its chip above the bar to keep it as text'),
       b('quote', 'Your data stays on this phone. Back it up in Settings → Export.'),
     ],
   });

@@ -15,7 +15,7 @@ const toKey = (b64) => {
 
 async function registration() {
   const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((r) => setTimeout(() => r(null), 6000))]);
-  if (!reg) throw new Error('The app is still starting up. Close and reopen Tempo, then try again.');
+  if (!reg) throw new Error('the app is still starting up. close and reopen to-do, then try again.');
   return reg;
 }
 
@@ -33,15 +33,15 @@ async function call(payload) {
 
 // Ask permission + subscribe. Returns { ok: true } or { ok: false, why: 'plain-language reason' }.
 export async function enable() {
-  if (!supported()) return { ok: false, why: 'This browser cannot receive push alerts. Open Tempo in Chrome.' };
-  if (Notification.permission === 'denied') return { ok: false, why: 'Notifications are blocked for Tempo. Allow them: Chrome menu → Settings → Site settings → Notifications.' };
+  if (!supported()) return { ok: false, why: 'this browser cannot receive push alerts. open to-do in chrome.' };
+  if (Notification.permission === 'denied') return { ok: false, why: 'notifications are blocked for to-do. allow them: chrome menu → settings → site settings → notifications.' };
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') return { ok: false, why: 'Notification permission was not granted.' };
+    if (perm !== 'granted') return { ok: false, why: 'notification permission was not granted.' };
     await subscription(true);
     return { ok: true };
   } catch (e) {
-    return { ok: false, why: `Could not subscribe: ${e?.message || e}` };
+    return { ok: false, why: `could not subscribe: ${e?.message || e}` };
   }
 }
 

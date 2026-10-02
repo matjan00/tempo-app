@@ -33,8 +33,10 @@ button { text-transform: inherit; }
 h1, h2, h3 { font-weight: 700; }
 
 /* user-written text keeps the case it was typed in */
-.t-title, .ck-t, .tp-t, .pick, .notes-title, .notes-snip, .pg-title, .txt, .blk-p, .blk-h1, .blk-h2, .blk-bullet, .blk-num, .blk-todo, .blk-quote,
-.pg-emoji, .stat-pname { text-transform: none; }
+.t-title, .ck-t, .tp-t, .pick-t, .notes-title, .notes-snip, .pg-title, .txt, .blk-p, .blk-h1, .blk-h2, .blk-bullet, .blk-num, .blk-todo, .blk-quote,
+.pg-emoji, .stat-pname, .qa-sheet-t, .keep { text-transform: none; }
+/* …but the app's own fallbacks inside those ("untitled") stay lowercase */
+.t-title .muted, .ck-t .muted { text-transform: lowercase; }
 
 /* headings & labels */
 .top h1 { font-size: 30px; letter-spacing: -0.04em; }
@@ -129,3 +131,158 @@ h1, h2, h3 { font-weight: 700; }
 .stat-bar, .stat-cell, .stat-pfill, .stat-ptrack { border-radius: 0 !important; }
 .blk-quote { border-left-color: var(--accent); }
 .pg-title { font-weight: 700; }
+
+/* ======================================================================
+   polish pass: accessibility, tap targets, leftovers, quick actions
+   ====================================================================== */
+
+/* accent used as text: a deeper shade on light grey so small red text stays readable (dark mode keeps the bright one) */
+:root { --accent-text: color-mix(in srgb, var(--accent) 72%, #000); }
+:root[data-theme='dark'] { --accent-text: var(--accent); }
+.m.late, .m.today, .sec.late h3, #nav button.on, .pick.on, .pg-pin.on, .notes-time .ic, .pg-danger, .pg-menu .pg-danger, .pg-tool.pg-danger { color: var(--accent-text); }
+.stat-ax.today { fill: var(--accent-text); }
+#nav button.on span { font-weight: 800; }
+
+/* keyboard focus: a thick accent outline, never on plain taps */
+:focus { outline: none; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.qa-input:focus-visible, .notes-search input:focus-visible, .txt:focus-visible, .pg-title:focus-visible, .ts-head textarea:focus-visible,
+#ts-notes:focus-visible, .sub input:focus-visible, .subadd input:focus-visible, .panel:focus-visible { outline: none; }
+.qa-form:focus-within, .notes-search:focus-within { border-color: var(--accent); }
+
+/* tap targets: at least 44px (visually small controls get an invisible bigger hit area) */
+.icon-btn { width: 44px; height: 44px; }
+.t-play { width: 44px; height: 44px; opacity: 1; color: var(--muted); }
+.check, .blk-check { position: relative; }
+.check.p0 { background: var(--surface); }
+.check::after, .blk-check::after { content: ''; position: absolute; inset: -11px; }
+.check.big::after { inset: -8px; }
+.pick .check::after { content: none; }
+.chip { min-height: 44px; }
+.noise .chip { min-height: 44px; padding: 6px 12px; }
+.seg button, .set-seg button, .stat-seg button { min-height: 44px; }
+.stepper button, .set-step button { width: 44px; height: 44px; }
+.set-step button:disabled { opacity: 0.35; cursor: default; }
+.sw { width: 44px; height: 44px; }
+.set-swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 44px)); justify-content: space-between; gap: 8px; }
+.set-sw { width: 100%; height: auto; aspect-ratio: 1; }
+.chip.add { min-width: 44px; justify-content: center; }
+.set-body { padding: 0 0 24px; }
+.set-step output { min-width: 66px; }
+.set-row > span:first-child { line-height: 1.25; }
+.ck-t { min-height: 36px; }
+.qa-send { width: 44px; height: 44px; }
+.qa-form { padding-top: 4px; padding-bottom: 4px; }
+.qa-input { min-height: 44px; }
+.btn { min-height: 44px; }
+.ck-a .icon-btn { width: 44px; height: 40px; }
+.pg-tool { min-width: 44px; height: 44px; border-radius: 0; }
+.proj-edit, .h3btn { min-height: 44px; }
+.chip-sm { position: relative; }
+.chip-sm::after { content: ''; position: absolute; inset: -6px -3px; }
+
+/* rows: the title area is a real button now (better for screen readers) */
+.t-main { display: block; text-align: left; width: 100%; }
+.t-title { display: block; }
+.t-meta { display: flex; }
+.ck-t { display: block; width: 100%; text-align: left; padding: 2px 0; }
+.task { -webkit-touch-callout: none; transition: opacity 0.3s, background-color 0.25s; }
+.task.pressing { background: var(--surface2); transition-delay: 0.12s; }
+.task.fresh { animation: fresh 1.6s ease-out; }
+@keyframes fresh { 0%, 35% { background: color-mix(in srgb, var(--accent) 22%, transparent); } 100% { background: transparent; } }
+.pull .task { padding-right: 112px; }
+.pull .chip { min-height: 40px; }
+
+/* tap feedback: things with a hard shadow get pushed in, flat things invert */
+.chip:active:not(.on), .noise .chip:active { background: var(--surface2); }
+.icon-btn:active { transform: translate(1px, 1px); }
+.qa-send:active, .ctl:active, .task-pick.has:active, .qa-act:active, .notes-tpl:active { transform: translate(2px, 2px); box-shadow: none; }
+.notes-row:active, .pick:active, .pg-menu button:active, .pg-slash-item:active, .pg-tool:active { background: var(--surface2); }
+.check:active { transform: translate(1px, 1px); }
+
+/* composer never covers the end of the list */
+#screen { scroll-padding-bottom: calc(var(--nav-h) + var(--safe-b) + 140px); }
+#screen:has(> .composer) { padding-bottom: calc(var(--nav-h) + var(--safe-b) + 150px); }
+body.typing #screen:has(> .composer) { padding-bottom: 150px; }
+
+/* quick-add preview chips: tap one to keep that word as text */
+.qa-chips .chip-sm { display: inline-flex; align-items: center; gap: 5px; border: 2px solid var(--text); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 600; padding: 3px 8px; box-shadow: 2px 2px 0 var(--text); }
+.qa-chips .chip-sm:active { transform: translate(2px, 2px); box-shadow: none; }
+.chip-x { opacity: 0.55; }
+.qa-hint { width: fit-content; margin: 7px auto 0; padding: 1px 8px; background: var(--bg); text-shadow: none; }
+
+/* quick actions sheet (press and hold a task) */
+.qa-sheet-t { font-weight: 700; font-size: 17px; margin: 2px 0 14px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.qa-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.qa-act { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 14px; border: 2px solid var(--text); background: var(--surface); box-shadow: 2px 2px 0 var(--text); font-weight: 600; text-align: left; }
+.qa-act.on { background: var(--text); color: var(--bg); }
+.qa-grid .qa-act { white-space: nowrap; padding: 0 10px; gap: 8px; }
+.qa-list { display: flex; flex-direction: column; border-top: 2px solid var(--text); }
+.qa-list .qa-act { border: 0; border-bottom: 1px solid var(--soft); box-shadow: none; background: none; min-height: 52px; padding: 0 4px; }
+.qa-list .qa-act:last-child { border-bottom: 0; }
+.qa-list .qa-act[data-qa="delete"] { color: var(--accent-text); }
+.qa-list .qa-act:active { transform: none; background: var(--surface2); }
+
+/* leftover rounded corners and soft shadows from the old theme */
+.notes-ico, .pg-emoji, .pg-slash-item, .pg-slash-ic, .pg-emojis button, .pg-menu button, .blk-divider, .task-pick, .ctl, .stat-dot,
+.stat-empty, .stat-cell.now, .chip.date, .panel, .toast, .pick .check { border-radius: 0 !important; }
+.notes-ico { background: var(--surface); border: 2px solid var(--text); }
+.blk-check { border-radius: 0; border: 2px solid var(--text); }
+.blk-todo.done .blk-check { background: var(--text); border-color: var(--text); color: var(--bg); }
+.blk-divider hr { border-top: 2px solid var(--text); }
+.pg-slash { border: 2px solid var(--text); box-shadow: var(--hard); padding: 4px; }
+.pg-slash-ic { background: var(--surface2); }
+.pg-tools { border-top: 2px solid var(--text); background: var(--bg); }
+.pg-sep { background: var(--soft); width: 2px; }
+.stat-empty { border: 2px dashed var(--text); background: transparent; }
+.stat-wrap { padding: 4px 0 28px; gap: 16px; }
+.stat-bar { fill: var(--text); opacity: 0.85; }
+.stat-bar.today { fill: var(--accent); opacity: 1; }
+.stat-bar.nil { fill: var(--soft); }
+.stat-ax { font-weight: 600; }
+.notes-row + .notes-row, .set-row + .set-row { border-top-color: var(--soft); }
+
+/* focus screen: bigger time, clear mode, task chip, square controls */
+.focus .top { margin-bottom: 12px; }
+.dial { width: min(78vw, 320px, 42dvh); margin: 12px auto 10px; }
+.controls { margin: 12px 0 14px; }
+.today-line { margin-bottom: 16px; }
+.dial-mode { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 6px; color: var(--muted); }
+.mode-focus.running .dial-mode { color: var(--accent-text); }
+.time { font-size: clamp(56px, 19vw, 88px); }
+.state { font-size: 12.5px; }
+.task-pick { border: 2px dashed var(--muted); margin-top: 4px; padding: 8px 16px; max-width: min(100%, 360px); }
+.task-pick.has { border: 2px solid var(--text); background: var(--surface); box-shadow: 2px 2px 0 var(--text); }
+.tp-none { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 600; }
+.tp-t { max-width: 100%; }
+.dots i.now { border-color: var(--accent); }
+.today-line b { color: var(--text); }
+.pick { min-height: 52px; }
+.pick-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-d { font-size: 12px; color: var(--muted); font-weight: 600; }
+body.zen .dial { width: min(88vw, 420px); }
+body.zen .time { font-size: clamp(64px, 22vw, 116px); }
+body.zen .task-pick { border-color: transparent; background: none; box-shadow: none; }
+
+/* sheets: a little more breathing room at the bottom on phones with gesture bars */
+.panel-body { padding-bottom: calc(28px + var(--safe-b)); }
+
+/* smaller phones (320–360px wide) */
+@media (max-width: 360px) {
+  #screen { padding-left: 16px; padding-right: 16px; }
+  .chips.scroll { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+  .board { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+  .top h1 { font-size: 26px; }
+  .controls { gap: 22px; }
+  .hero { gap: 12px; padding: 14px; }
+  .hero-t .big { font-size: 24px; }
+  .seg button { font-size: 12.5px; }
+  .pull .task { padding-right: 104px; }
+  .install-banner { padding-left: 12px; gap: 6px; }
+  .install-banner > div > .ic, .install-banner small { display: none; }
+}
+
+/* motion: respect the system "reduce motion" setting everywhere */
+@media (prefers-reduced-motion: reduce) {
+  .task.fresh { animation: none; }
+}

@@ -15,7 +15,7 @@ const TYPES = [
   { t: 'quote', label: 'Quote', ic: 'quote', kw: 'quote cite' },
   { t: 'divider', label: 'Divider', ic: 'minus', kw: 'divider line separator hr' },
 ];
-const PH = { p: "Type '/' for blocks", h1: 'Heading 1', h2: 'Heading 2', bullet: 'List', num: 'List', todo: 'To-do', quote: 'Quote' };
+const PH = { p: "type '/' for blocks", h1: 'heading 1', h2: 'heading 2', bullet: 'list', num: 'list', todo: 'to-do', quote: 'quote' };
 const LISTY = ['bullet', 'num', 'todo', 'quote'];
 
 const EMOJIS = ['📄', '📝', '📓', '📔', '📚', '📖', '🗒️', '📋', '📌', '💡', '🎯', '✅', '🚀', '⭐', '🔥', '🌱', '🌿', '☀️', '🌙', '🏠', '💼', '🧠', '🎨', '🎧', '🎬', '✈️', '🍳', '🏋️', '🏃', '💰', '🛒', '📅', '⏰', '🔑', '🧩', '🧪', '💻', '📱', '🎁', '❤️', '😀', '🤔', '👋', '🙏', '🐶', '🐱', '🌍', '🏆'];
@@ -100,8 +100,8 @@ function rowHtml(pg) {
   return `<button class="notes-row" data-act="open" data-id="${pg.id}">
     <span class="notes-ico">${esc(pg.icon || '📄')}</span>
     <span class="notes-main">
-      <span class="notes-title">${esc(pg.title.trim() || 'Untitled')}</span>
-      <span class="notes-snip">${snip ? esc(snip) : '<i>Empty</i>'}</span>
+      <span class="notes-title">${pg.title.trim() ? esc(pg.title) : 'untitled'}</span>
+      <span class="notes-snip">${snip ? esc(snip) : '<i>empty</i>'}</span>
     </span>
     <span class="notes-time">${pg.pinned ? icon('pin', 13) : ''}${esc(timeAgo(pg.updated))}</span>
   </button>`;
@@ -115,7 +115,7 @@ function listHtml() {
   let pages = [...all].sort((a, c) => c.updated - a.updated);
   if (needle)
     pages = pages.filter((p) => p.title.toLowerCase().includes(needle) || p.blocks.some((x) => x.text.toLowerCase().includes(needle)));
-  if (!pages.length) return `<div class="empty"><p>No notes match "${esc(q.trim())}".</p></div>`;
+  if (!pages.length) return `<div class="empty"><p>No notes match “<span class="keep">${esc(q.trim())}</span>”.</p><small>Search looks in titles and text.</small></div>`;
   const pinned = pages.filter((p) => p.pinned);
   const rest = pages.filter((p) => !p.pinned);
   let out = '';
@@ -127,8 +127,8 @@ function listHtml() {
 export function render(root) {
   const n = store.get().pages.length;
   root.innerHTML = `<header class="top"><div><div class="eyebrow">${n} ${n === 1 ? 'page' : 'pages'}</div><h1>Notes</h1></div>
-      <button class="icon-btn" data-act="new" aria-label="New page">${icon('plus', 22)}</button></header>
-    <label class="notes-search">${icon('search', 18)}<input type="search" data-q placeholder="Search notes" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>
+      <button class="icon-btn" data-act="new" aria-label="new page">${icon('plus', 22)}</button></header>
+    <label class="notes-search">${icon('search', 18)}<input type="search" data-q data-keep="notesq" placeholder="search notes" aria-label="search notes" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>
     <div class="notes-list">${listHtml()}</div>`;
 
   root.oninput = (e) => {
@@ -233,16 +233,16 @@ export function openPage(id) {
   const rec = ui.openSheet(
     `<div class="pg">
       <div class="pg-bar">
-        <button class="icon-btn" data-act="back" aria-label="Back">${icon('chevL', 22)}</button>
+        <button class="icon-btn" data-act="back" aria-label="back to notes">${icon('chevL', 22)}</button>
         <span class="pg-grow"></span>
-        <button class="icon-btn pg-pin" data-act="pin" aria-label="Pin">${icon('pin', 21)}</button>
-        <button class="icon-btn" data-act="more" aria-label="More">${icon('more', 22)}</button>
+        <button class="icon-btn pg-pin" data-act="pin" aria-label="pin page">${icon('pin', 21)}</button>
+        <button class="icon-btn" data-act="more" aria-label="page options">${icon('more', 22)}</button>
       </div>
       <div class="pg-scroll">
         <div class="pg-inner">
-          <button class="pg-emoji" data-act="emoji" aria-label="Change icon">${esc(page.icon || '📄')}</button>
-          <textarea class="pg-title" rows="1" placeholder="Untitled" enterkeyhint="next" spellcheck="true"></textarea>
-          <div class="pg-blocks"></div>
+          <button class="pg-emoji" data-act="emoji" aria-label="change page icon">${esc(page.icon || '📄')}</button>
+          <textarea class="pg-title" rows="1" placeholder="untitled" enterkeyhint="next" spellcheck="true" aria-label="page title"></textarea>
+          <div class="pg-blocks" role="group" aria-label="page content"></div>
           <div class="pg-tail" data-act="tail"></div>
         </div>
       </div>
@@ -251,9 +251,9 @@ export function openPage(id) {
         <div class="pg-tools">
           ${TYPES.map((t) => `<button class="pg-tool" data-t="${t.t}" aria-label="${t.label}">${t.ic ? icon(t.ic, 19) : `<b>${t.txt}</b>`}</button>`).join('')}
           <span class="pg-sep"></span>
-          <button class="pg-tool" data-a="up" aria-label="Move up">${icon('up', 19)}</button>
-          <button class="pg-tool" data-a="down" aria-label="Move down">${icon('down', 19)}</button>
-          <button class="pg-tool pg-danger" data-a="del" aria-label="Delete block">${icon('trash', 19)}</button>
+          <button class="pg-tool" data-a="up" aria-label="move block up">${icon('up', 19)}</button>
+          <button class="pg-tool" data-a="down" aria-label="move block down">${icon('down', 19)}</button>
+          <button class="pg-tool pg-danger" data-a="del" aria-label="delete block">${icon('trash', 19)}</button>
         </div>
       </div>
     </div>`,
@@ -287,7 +287,7 @@ export function openPage(id) {
     if (bl.type === 'bullet') lead = '<span class="blk-mark" contenteditable="false">•</span>';
     else if (bl.type === 'num') lead = `<span class="blk-mark" contenteditable="false">${n}.</span>`;
     else if (bl.type === 'todo')
-      lead = `<button class="blk-check" data-act="check" contenteditable="false" tabindex="-1" aria-label="Toggle done">${icon('check', 14)}</button>`;
+      lead = `<button class="blk-check" data-act="check" contenteditable="false" tabindex="-1" role="checkbox" aria-checked="${!!bl.done}" aria-label="done">${icon('check', 14)}</button>`;
     return `<div class="blk blk-${bl.type}${bl.done ? ' done' : ''}" data-id="${bl.id}" data-type="${bl.type}">${lead}<div class="txt" contenteditable="true" data-ph="${esc(PH[bl.type] || '')}" spellcheck="true">${esc(bl.text)}</div></div>`;
   }
   function renderBlocks(focusId, off = 'end') {
@@ -416,6 +416,16 @@ export function openPage(id) {
       return renderBlocks(bid, 0);
     }
     const o = selOffsets(el) || { start: text.length, end: text.length };
+    if (o.start === 0 && o.end === 0 && text !== '') {
+      // caret at the very start: open an empty line above and keep this block (and its type) as it is
+      const above = b(bl.type === 'bullet' || bl.type === 'num' || bl.type === 'todo' ? bl.type : 'p');
+      m(() => {
+        page.blocks.splice(i, 0, above);
+        touch();
+      });
+      hideSlash();
+      return renderBlocks(bid, 0);
+    }
     const before = text.slice(0, o.start);
     const after = text.slice(o.end);
     const nt = bl.type === 'bullet' || bl.type === 'num' || bl.type === 'todo' ? bl.type : 'p';
@@ -514,16 +524,30 @@ export function openPage(id) {
       if (!txtEl(cur)) blockEl(cur)?.scrollIntoView({ block: 'nearest' });
     } else if (a === 'del') {
       let focusId;
+      const [gone] = page.blocks.slice(i, i + 1);
       m(() => {
         page.blocks.splice(i, 1);
         if (!page.blocks.length) page.blocks.push(b('p'));
-        const n = page.blocks[Math.min(i, page.blocks.length - 1)];
+        // caret goes to the end of the block above (or the start of the one below when deleting the first)
+        const n = page.blocks[i > 0 ? i - 1 : 0];
         focusId = n.id;
         touch();
       });
       divSel = false;
       renderBlocks(focusId, i > 0 ? 'end' : 0);
       if (!txtEl(focusId)) divSel = true;
+      if (gone && (gone.text.trim() || gone.type === 'divider'))
+        ui.toast('block deleted', {
+          action: 'undo',
+          onAction: () => {
+            if (rec.closed || page.blocks.some((x) => x.id === gone.id)) return;
+            m(() => {
+              page.blocks.splice(Math.min(i, page.blocks.length), 0, gone);
+              touch();
+            });
+            renderBlocks(gone.type === 'divider' ? null : gone.id, 'end');
+          },
+        });
     }
     // keep a selected divider highlighted
     if (divSel) blockEl(cur)?.classList.add('sel');
@@ -573,12 +597,20 @@ export function openPage(id) {
       const o = selOffsets(el);
       const len = el.textContent.length;
       if (o && o.start === len && o.end === len && moveFocus(el.closest('.blk').dataset.id, 1)) e.preventDefault();
-    } else if (e.key === 'Escape') hideSlash();
+    } else if (e.key === 'Escape' && !slashEl.hidden) {
+      e.preventDefault(); // close only the menu, not the page
+      hideSlash();
+    }
   });
 
   pg.addEventListener('input', (e) => {
     if (e.target === titleEl) {
-      const v = titleEl.value.replace(/\n/g, ' ');
+      const v = titleEl.value.replace(/\r?\n/g, ' ');
+      if (v !== titleEl.value) {
+        const pos = titleEl.selectionStart;
+        titleEl.value = v; // a pasted line break would otherwise stay visible in the title box
+        titleEl.setSelectionRange(pos, pos);
+      }
       m(() => {
         page.title = v;
         touch();
@@ -708,6 +740,7 @@ export function openPage(id) {
         touch();
       });
       row.classList.toggle('done', bl.done);
+      chk.setAttribute('aria-checked', bl.done);
       return;
     }
     const div = e.target.closest('.blk-divider');
@@ -776,18 +809,16 @@ export function openPage(id) {
       r.close();
       if (x.dataset.m === 'dup') {
         const copy = store.addPage({
-          title: (page.title || 'Untitled') + ' (copy)',
+          title: (page.title || 'untitled') + ' (copy)',
           icon: page.icon,
           blocks: page.blocks.map((bl) => ({ ...bl, id: uid() })),
         });
-        ui.toast('Page duplicated', { action: 'Open', onAction: () => (rec.close(), setTimeout(() => openPage(copy.id), 300)) });
+        ui.toast('page duplicated', { action: 'open', onAction: () => (rec.close(), setTimeout(() => openPage(copy.id), 300)) });
       } else {
-        const ok = await ui.confirmDialog(`"${page.title.trim() || 'Untitled'}" will be deleted.`, { title: 'Delete page?' });
-        if (!ok) return;
         const pid = page.id;
         rec.close();
-        store.deletePage(pid);
-        ui.toast('Page deleted');
+        const snap = store.deletePage(pid);
+        if (snap) ui.toast('page deleted', { action: 'undo', onAction: () => store.restorePage(snap) });
       }
     });
   }
@@ -799,9 +830,12 @@ export function openPage(id) {
     const p = store.getPage(id);
     if (p) {
       // drop pages the user opened and never wrote anything in
-      const empty = !p.title.trim() && p.blocks.every((x) => x.type === 'p' && !x.text.trim()) && p.blocks.length <= 1;
-      if (empty) store.deletePage(id);
-      else store.emit();
+      // (any number of blank lines counts as empty; a divider or a checked box counts as content)
+      const empty = !p.title.trim() && p.blocks.every((x) => x.type !== 'divider' && !x.text.trim() && !x.done);
+      if (empty) {
+        store.deletePage(id);
+        ui.toast('empty page discarded');
+      } else store.emit();
     }
   }
 

@@ -9,6 +9,7 @@ import * as focus from './focus.js';
 import * as notes from './notes.js';
 import * as stats from './stats.js';
 import { closeAll } from './ui.js';
+import { bindLongPress } from './components.js';
 
 const TABS = [
   ['today', 'Today', 'sun', today],
@@ -27,7 +28,7 @@ try {
 } catch {}
 
 function drawNav() {
-  nav.innerHTML = TABS.map(([k, label, ic]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-label="${label}">${icon(ic, 23)}<span>${label}</span></button>`).join('');
+  nav.innerHTML = TABS.map(([k, label, ic]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 23)}<span>${label}</span></button>`).join('');
 }
 
 function render() {
@@ -59,8 +60,11 @@ function render() {
   }
 }
 
+// Each tab remembers where it was scrolled to (for this session), so switching tabs doesn't lose your place.
+const scrollOf = {};
 function go(next) {
-  if (next === tab) return root.scrollTo({ top: 0, behavior: 'smooth' });
+  if (next === tab) return root.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  scrollOf[tab] = root.scrollTop;
   tab = next;
   try {
     localStorage.setItem('tempo.tab', tab);
@@ -69,6 +73,8 @@ function go(next) {
   drawNav();
   root.scrollTop = 0;
   render();
+  root.scrollTop = scrollOf[tab] || 0;
+  root.dataset.tab = tab;
 }
 
 nav.addEventListener('click', (e) => {
@@ -80,7 +86,8 @@ nav.addEventListener('click', (e) => {
 document.addEventListener('tempo:focus-task', (e) => {
   closeAll();
   timer.setTask(e.detail);
-  timer.setMode('focus');
+  // keep a focus session that is already under way (just switch its task); otherwise get a fresh focus timer
+  if (timer.view().mode !== 'focus') timer.setMode('focus');
   go('focus');
   render();
 });
@@ -98,11 +105,18 @@ store.subscribe(() => {
 
 // Timer heartbeat
 let lastTitle = '';
+let lastDay = new Date().toDateString();
 setInterval(() => {
+  // the app may stay open past midnight: redraw so "today", overdue and stats move to the new day
+  const day = new Date().toDateString();
+  if (day !== lastDay) {
+    lastDay = day;
+    store.emit();
+  }
   timer.tick();
   if (tab === 'focus') focus.tickUI();
   const v = timer.view();
-  const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode]}` : 'to-do';
+  const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode].toLowerCase()}` : 'to-do';
   if (title !== lastTitle) document.title = lastTitle = title;
 }, 250);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (timer.tick(), tab === 'focus' && focus.tickUI()));
@@ -123,7 +137,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 
+bindLongPress(root); // press-and-hold a task row for quick actions (bound once: #screen is never replaced)
+
 applyTheme();
 drawNav();
+root.dataset.tab = tab;
 render();
 timer.sync();

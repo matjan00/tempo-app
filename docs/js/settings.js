@@ -24,7 +24,7 @@ const TOGGLES = [
   { k: 'sound', label: 'Sound' },
   { k: 'vibrate', label: 'Vibrate' },
   { k: 'keepAwake', label: 'Keep screen on while running' },
-  { k: 'notify', label: 'Ring when phone is locked', hint: 'Sends a notification at the exact end time, even if Tempo is closed. Needs notification permission; make sure the phone is not on silent.' },
+  { k: 'notify', label: 'Ring when phone is locked', hint: 'Sends a notification at the exact end time, even if to-do is closed. Needs notification permission; make sure the phone is not on silent.' },
 ];
 
 const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
@@ -32,15 +32,15 @@ const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 
 function html() {
   const s = store.get().settings;
-  const seg = THEMES.map(([v, l]) => `<button data-theme="${v}" class="${s.theme === v ? 'on' : ''}">${l}</button>`).join('');
+  const seg = THEMES.map(([v, l]) => `<button data-theme="${v}" class="${s.theme === v ? 'on' : ''}" aria-pressed="${s.theme === v}">${l}</button>`).join('');
   const sw = Object.entries(theme.ACCENTS)
     .map(([id, a]) => {
       const bg = a.c || 'conic-gradient(#18181b 50%, #f2f2f3 0)';
-      return `<button class="set-sw ${s.accent === id ? 'on' : ''}" data-accent="${id}" style="background:${bg}" aria-label="${esc(a.name)}" title="${esc(a.name)}"></button>`;
+      return `<button class="set-sw ${s.accent === id ? 'on' : ''}" data-accent="${id}" style="background:${bg}" aria-label="accent ${esc(a.name.toLowerCase())}" aria-pressed="${s.accent === id}" title="${esc(a.name.toLowerCase())}"></button>`;
     })
     .join('');
   const steps = STEPPERS.map(
-    (p) => `<div class="set-row"><span>${p.label}</span><div class="set-step"><button data-step="${p.k}" data-d="-1" aria-label="Decrease">&minus;</button><output><b>${s[p.k]}</b> <small>${p.unit}</small></output><button data-step="${p.k}" data-d="1" aria-label="Increase">+</button></div></div>`
+    (p) => `<div class="set-row"><span>${p.label}</span><div class="set-step"><button data-step="${p.k}" data-d="-1" aria-label="less ${p.label.toLowerCase()}" ${s[p.k] <= p.min ? 'disabled' : ''}>&minus;</button><output aria-live="polite"><b>${s[p.k]}</b> <small>${p.unit}</small></output><button data-step="${p.k}" data-d="1" aria-label="more ${p.label.toLowerCase()}" ${s[p.k] >= p.max ? 'disabled' : ''}>+</button></div></div>`
   ).join('');
   const tog = TOGGLES.map(
     (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
@@ -86,9 +86,9 @@ async function doImport(file) {
     store.replaceAll(data);
     theme.applyTheme();
     draw();
-    toast('Backup imported');
+    toast('backup imported');
   } catch {
-    toast('That file is not a valid Tempo backup');
+    toast('that file is not a valid to-do backup');
   }
 }
 
@@ -138,14 +138,12 @@ export function openSettings() {
     else if (act === 'install') runInstall();
     else if (act === 'testpush') {
       await push.schedule(Date.now() + 10000, 'to-do test', 'If you see this, locked-phone alarms work.');
-      toast('Lock your phone now. It should ring in about 10–20 seconds.', { ms: 6000 });
+      toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
     }
     else if (act === 'reset') {
       const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset to-do?' });
       if (ok) {
-        try {
-          localStorage.removeItem('tempo.v1');
-        } catch {}
+        store.resetAll(); // stops the app from saving the old data back while it reloads
         location.reload();
       }
     }
@@ -164,7 +162,7 @@ export function openSettings() {
     const k = t.dataset.tog;
     if (k === 'notify' && t.checked) {
       let ok = false;
-      let why = 'Notifications are not available on this device yet.';
+      let why = 'notifications are not available on this device yet.';
       if (push.supported()) {
         const r = await push.enable();
         ok = r.ok;
@@ -176,7 +174,7 @@ export function openSettings() {
       }
       if (!ok) {
         set('notify', false);
-        toast(why, { ms: 9000 });
+        toast(String(why).toLowerCase(), { ms: 9000 });
         return draw();
       }
     }

@@ -58,8 +58,8 @@ function barChart(days, byDay, today) {
     const y = top + ch - h;
     const isT = d === today;
     const future = d > today;
-    if (v) bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(bw / 2, 6).toFixed(1)}" class="stat-bar ${isT ? 'today' : ''}"><title>${esc(d)}: ${fmtMin(v)}</title></rect>`;
-    else if (!future) bars += `<rect x="${x.toFixed(1)}" y="${top + ch - 3}" width="${bw.toFixed(1)}" height="3" rx="1.5" class="stat-bar nil"/>`;
+    if (v) bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" class="stat-bar ${isT ? 'today' : ''}"><title>${esc(d)}: ${fmtMin(v)}</title></rect>`;
+    else if (!future) bars += `<rect x="${x.toFixed(1)}" y="${top + ch - 3}" width="${bw.toFixed(1)}" height="3" class="stat-bar nil"/>`;
     const dt = parseYmd(d);
     let label = '';
     if (range === 'week') label = WD[(dt.getDay() + 6) % 7];
@@ -90,11 +90,12 @@ function heatmap(byDay, today) {
       }
       const v = byDay[d] || 0;
       const o = v ? 0.25 + 0.75 * Math.min(1, v / max) : 0;
-      cells += `<i class="stat-cell ${d === today ? 'now' : ''}" style="${v ? `--o:${o.toFixed(2)}` : ''}" title="${esc(d)}: ${fmtMin(v)}"></i>`;
+      // (no style attribute at all on empty days: `.stat-cell[style]` would otherwise make them invisible)
+      cells += `<i class="stat-cell ${d === today ? 'now' : ''}"${v ? ` style="--o:${o.toFixed(2)}"` : ''} title="${esc(d)}: ${fmtMin(v)}"></i>`;
     }
     cols += `<div class="stat-col">${cells}</div>`;
   }
-  return `<div class="stat-heat"><div class="stat-months">${months}</div><div class="stat-cols">${cols}</div></div>`;
+  return `<div class="stat-heat" role="img" aria-label="focus minutes per day, last 15 weeks"><div class="stat-months">${months}</div><div class="stat-cols">${cols}</div></div>`;
 }
 
 function projects(byProject, st) {
@@ -131,23 +132,24 @@ export function render(root) {
 
   const goal = st.settings.goal || 0;
   const hasData = st.sessions.length > 0;
+  const nToday = st.sessions.filter((x) => ymd(new Date(x.end)) === today).length;
   const cards = [
-    ['Focus today', fmtMin(byDay[today] || 0), goal ? `goal ${goal} sessions` : ''],
+    ['Focus today', fmtMin(byDay[today] || 0), goal ? `${nToday}/${goal} sessions${nToday >= goal ? ' · goal reached' : ''}` : `${nToday} sessions`],
     ['This week', fmtMin(weekMin), 'Mon to Sun'],
-    ['Day streak', String(sk), sk === 1 ? 'day' : 'days'],
+    ['Day streak', String(sk), sk ? (byDay[today] ? (sk === 1 ? 'day' : 'days in a row') : 'focus today to keep it') : 'focus to start one'],
     ['Tasks done', String(tasksWeek), 'this week'],
   ]
     .map(([l, v, s]) => `<div class="stat-card"><span class="stat-l">${l}</span><b class="stat-v">${v}</b><span class="stat-s">${s}</span></div>`)
     .join('');
 
   root.innerHTML = `<header class="top"><div><div class="eyebrow">Your progress</div><h1>Stats</h1></div>
-      <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('sliders', 22)}</button></header>
+      <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button></header>
     <div class="stat-wrap">
       <div class="stat-cards">${cards}</div>
       ${hasData ? '' : `<div class="stat-empty">${icon('timer', 34)}<h3>Nothing to chart yet</h3><p>Finish a focus session and your minutes, streak and habits will show up here.</p></div>`}
       <section class="stat-box">
         <div class="stat-boxhead"><h3>Focus minutes</h3>
-          <div class="stat-seg" role="tablist"><button data-range="week" class="${range === 'week' ? 'on' : ''}">Week</button><button data-range="month" class="${range === 'month' ? 'on' : ''}">Month</button></div></div>
+          <div class="stat-seg" role="group" aria-label="chart range"><button data-range="week" class="${range === 'week' ? 'on' : ''}" aria-pressed="${range === 'week'}">Week</button><button data-range="month" class="${range === 'month' ? 'on' : ''}" aria-pressed="${range === 'month'}">30 days</button></div></div>
         ${barChart(days, byDay, today)}
       </section>
       <section class="stat-box"><div class="stat-boxhead"><h3>Last 15 weeks</h3></div>${heatmap(byDay, today)}</section>

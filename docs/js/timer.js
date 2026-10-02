@@ -12,8 +12,9 @@ export const durationOf = (mode, s = store.get().settings) => s[mode] * 60000;
 export function view() {
   const st = store.get();
   const t = st.timer;
-  const total = durationOf(t.mode, st.settings);
-  const rem = t.running ? Math.max(0, t.endAt - Date.now()) : t.remaining ?? total;
+  // A session that has started keeps the length it started with, even if Settings change meanwhile.
+  const total = t.startedAt && t.len ? t.len * 60000 : durationOf(t.mode, st.settings);
+  const rem = Math.min(total, t.running ? Math.max(0, t.endAt - Date.now()) : t.remaining ?? total);
   return { mode: t.mode, running: t.running, rem, total, taskId: t.taskId, cycle: t.cycle, every: st.settings.every };
 }
 
@@ -128,8 +129,8 @@ function nextLabel() {
   const st = store.get();
   const t = st.timer;
   if (t.mode === 'focus') {
-    const long = t.cycle + 1 >= st.settings.every;
-    return ['focus session done', `${st.settings.focus} min logged. time for a ${long ? 'long' : 'short'} break.`];
+    const long = (t.cycle >= st.settings.every ? 0 : t.cycle) + 1 >= st.settings.every;
+    return ['focus session done', `${t.len || st.settings.focus} min logged. time for a ${long ? 'long' : 'short'} break.`];
   }
   return ['break over', 'ready for the next focus session?'];
 }
@@ -150,7 +151,10 @@ export function start() {
     t.running = true;
     t.endAt = Date.now() + v.rem;
     t.remaining = null;
-    t.startedAt ||= Date.now();
+    if (!t.startedAt) {
+      t.startedAt = Date.now();
+      t.len = s.settings[t.mode];
+    }
   });
   sync();
 }
@@ -169,14 +173,36 @@ export const toggle = () => (view().running ? pause() : start());
 
 export function reset() {
   store.mutate((s) => {
-    Object.assign(s.timer, { running: false, endAt: null, remaining: null, startedAt: null });
+    Object.assign(s.timer, { running: false, endAt: null, remaining: null, startedAt: null, len: null });
   });
   sync();
 }
 
 export function setMode(mode) {
   store.mutate((s) => {
-    Object.assign(s.timer, { mode, running: false, endAt: null, remaining: null, startedAt: null });
+    const t = s.timer;
+    // starting a new round of focus after the long break was skipped by hand
+    if (mode === 'focus' && t.cycle >= s.settings.every) t.cycle = 0;
+    Object.assign(t, { mode, running: false, endAt: null, remaining: null, startedAt: null, len: null });
+  });
+  sync();
+}
+
+// True when the current session has progress that a reset / skip / mode change would throw away.
+export const hasProgress = () => {
+  const v = view();
+  return v.running || v.rem < v.total - 1000;
+};
+
+// Copy of the timer state, so "undo" can put a reset / skipped / switched session back.
+export const snapshot = () => JSON.parse(JSON.stringify(store.get().timer));
+export function restore(snap) {
+  if (!snap) return;
+  store.mutate((s) => {
+    const t = { ...snap };
+    // a running session that would have ended while the undo toast was up just resumes paused at 0:01
+    if (t.running && t.endAt <= Date.now() + 1000) Object.assign(t, { running: false, endAt: null, remaining: 1000 });
+    s.timer = { ...s.timer, ...t };
   });
   sync();
 }
@@ -199,12 +225,13 @@ function advance(completed, endedAt) {
     if (t.mode === 'focus') {
       if (completed) {
         const task = s.tasks.find((x) => x.id === t.taskId);
-        const min = s.settings.focus;
+        const min = t.len || s.settings.focus;
         s.sessions.push({ id: uid(), end: endedAt, min, task: t.taskId || null, project: task?.project || null });
         if (task) {
           task.pomos += 1;
           task.focusMin += min;
         }
+        if (t.cycle >= s.settings.every) t.cycle = 0; // previous round's long break was skipped by hand
         t.cycle += 1;
         logged = min;
       }
@@ -213,7 +240,7 @@ function advance(completed, endedAt) {
       if (t.mode === 'long') t.cycle = 0;
       next = 'focus';
     }
-    Object.assign(t, { mode: next, running: false, endAt: null, remaining: null, startedAt: null });
+    Object.assign(t, { mode: next, running: false, endAt: null, remaining: null, startedAt: null, len: null });
   });
   if (completed && store.get().settings.autoStart) start();
   else sync();
