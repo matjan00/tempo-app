@@ -29,29 +29,49 @@ export function openSheet(html, { full = false, cls = '', onClose } = {}) {
   el.querySelector('.backdrop').addEventListener('click', rec.close);
   const panel = el.querySelector('.panel');
   panel.tabIndex = -1;
-  // drag the handle down to close the sheet
-  const zone = el.querySelector('.grab-zone');
-  if (zone) {
-    let y0 = null;
-    zone.addEventListener('pointerdown', (e) => {
-      y0 = e.clientY;
-      zone.setPointerCapture?.(e.pointerId);
-      panel.style.transition = 'none';
-    });
-    zone.addEventListener('pointermove', (e) => {
-      if (y0 === null) return;
-      panel.style.transform = `translateY(${Math.max(0, e.clientY - y0)}px)`;
-    });
+  // swipe down to close: from the handle / top bar always, from anywhere else when the sheet is scrolled to the top
+  if (!full) {
+    const body = rec.body;
+    let sx = null, sy = 0, dragging = false, fromTop = false, lastY = 0, lastT = 0, vy = 0;
+    panel.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return (sx = null);
+      const t = e.touches[0];
+      sx = t.clientX; sy = lastY = t.clientY; lastT = e.timeStamp; vy = 0; dragging = false;
+      fromTop = !!e.target.closest('.grab-zone, .ts-bar');
+    }, { passive: true });
+    panel.addEventListener('touchmove', (e) => {
+      if (sx === null) return;
+      const t = e.touches[0];
+      const dy = t.clientY - sy, dx = t.clientX - sx;
+      if (!dragging) {
+        if (dy > 6 && dy > Math.abs(dx) * 1.2 && (fromTop || body.scrollTop <= 0) && !e.target.closest('input[type=range], .chips.scroll')) {
+          dragging = true;
+          panel.style.transition = 'none';
+        } else if (Math.abs(dx) > 12 || dy < -6) return (sx = null);
+        else return;
+      }
+      e.preventDefault();
+      panel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+      const dt = Math.max(8, e.timeStamp - lastT);
+      vy = (t.clientY - lastY) / dt;
+      lastY = t.clientY; lastT = e.timeStamp;
+    }, { passive: false });
     const end = (e) => {
-      if (y0 === null) return;
-      const dy = e.clientY - y0;
-      y0 = null;
-      panel.style.transition = '';
-      panel.style.transform = '';
-      if (dy > 80) rec.close();
+      if (sx === null || !dragging) return (sx = null);
+      sx = null;
+      const dy = (e.changedTouches?.[0]?.clientY ?? lastY) - sy;
+      if (dy > 90 || (vy > 0.6 && dy > 40)) {
+        panel.style.transition = 'transform .2s ease-out';
+        panel.style.transform = 'translateY(100%)';
+        rec.close();
+      } else {
+        panel.style.transition = 'transform .2s var(--ease)';
+        panel.style.transform = '';
+        setTimeout(() => (panel.style.transition = ''), 220);
+      }
     };
-    zone.addEventListener('pointerup', end);
-    zone.addEventListener('pointercancel', end);
+    panel.addEventListener('touchend', end);
+    panel.addEventListener('touchcancel', end);
   }
   // a [data-close] button anywhere in the sheet closes it
   rec.body.addEventListener('click', (e) => e.target.closest('[data-close]') && rec.close());

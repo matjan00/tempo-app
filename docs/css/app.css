@@ -301,3 +301,8 @@ body.zen .focus .top .eyebrow, body.zen .focus .top [data-act=settings] { displa
 .grab-zone .grab { margin: 0 auto; }
 .ts-bar { position: sticky; top: -8px; z-index: 2; margin: -8px -20px 4px; padding: 8px 20px; background: var(--surface); }
 .ts-bar .btn { padding: 9px 16px 9px 10px; min-height: 44px; }
+
+/* bigger, easier drag area */
+.grab-zone { padding: 16px 0 14px; }
+.grab-zone, .ts-bar { touch-action: none; }
+.overscroll-none, .panel-body { overscroll-behavior-y: contain; }
