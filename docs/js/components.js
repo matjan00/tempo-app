@@ -5,15 +5,21 @@ import { openSheet, toast } from './ui.js';
 import { icon } from './icons.js';
 import { esc, fmtDate, todayStr, addDays, parseYmd, haptic, uid } from './util.js';
 
-export const PRIO_LABEL = ['None', 'Low', 'Medium', 'High'];
-const REPEATS = [[null, 'Never'], ['daily', 'Daily'], ['weekdays', 'Weekdays'], ['weekly', 'Weekly'], ['monthly', 'Monthly']];
+export const PRIO_LABEL = ['none', 'low', 'medium', 'high'];
+const PRIO_GLYPH = ['', '!', '!!', '!!!'];
+const REPEATS = [[null, 'never'], ['daily', 'daily'], ['weekdays', 'weekdays'], ['weekly', 'weekly'], ['monthly', 'monthly']];
 
 export const projectOf = (id) => store.get().projects.find((p) => p.id === id);
+
+// The one priority signal used everywhere: ! low · !! medium · !!! high (plus a thicker checkbox for high).
+export const prioMark = (p) =>
+  p ? `<span class="m prio" title="${PRIO_LABEL[p]} priority"><span aria-hidden="true">${PRIO_GLYPH[p]}</span><span class="sr">${PRIO_LABEL[p]} priority</span></span>` : '';
 
 // ---------- task row ----------
 export function taskRow(t, { showProject = true } = {}) {
   const today = todayStr();
   const meta = [];
+  if (t.prio) meta.push(prioMark(t.prio));
   if (t.due) {
     const cls = !t.done && t.due < today ? 'late' : t.due === today ? 'today' : '';
     meta.push(`<span class="m ${cls}">${icon('calendar', 13)}${fmtDate(t.due)}</span>`);
@@ -75,17 +81,18 @@ export function handleTaskClick(e, { onFocus } = {}) {
 }
 
 // ---------- long-press quick actions ----------
-// Press and hold a task row (or right-click it) to reschedule, focus or delete it without opening it.
+// Press and hold a task row or board card (or right-click it) to reschedule, focus or delete it without opening it.
+const HOLDABLE = '.task[data-id], .card-k[data-id]';
 export function bindLongPress(root) {
   let timer = null;
   let start = null;
   const cancel = () => {
     clearTimeout(timer);
     timer = null;
-    root.querySelectorAll('.task.pressing').forEach((x) => x.classList.remove('pressing'));
+    root.querySelectorAll('.pressing').forEach((x) => x.classList.remove('pressing'));
   };
   root.addEventListener('pointerdown', (e) => {
-    const row = e.target.closest('.task[data-id]');
+    const row = e.target.closest(HOLDABLE);
     if (!row || e.button > 0) return;
     cancel();
     start = { x: e.clientX, y: e.clientY };
@@ -104,7 +111,7 @@ export function bindLongPress(root) {
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => root.addEventListener(ev, cancel));
   root.addEventListener('scroll', cancel, true);
   root.addEventListener('contextmenu', (e) => {
-    const row = e.target.closest('.task[data-id]');
+    const row = e.target.closest(HOLDABLE);
     if (!row) return;
     e.preventDefault();
     if (row.dataset.held) return; // already opened by the long-press timer
@@ -191,12 +198,12 @@ export function bindComposer(root, getDefaults = () => ({})) {
     const c = [];
     const chip = (kind, html, label) => c.push(`<button type="button" class="m chip-sm" data-ig="${esc(kind)}" aria-label="keep ${esc(label)} as text">${html}${icon('x', 12, 'chip-x')}</button>`);
     if (r.due) chip('due', `${icon('calendar', 13)}${fmtDate(r.due)}`, 'date');
-    if (r.prio) chip('prio', `${icon('flag', 13)}${PRIO_LABEL[r.prio]}`, 'priority');
+    if (r.prio) chip('prio', `<b class="prio-g" aria-hidden="true">${PRIO_GLYPH[r.prio]}</b>${PRIO_LABEL[r.prio]}`, 'priority');
     const p = r.project && projectOf(r.project);
     if (p) chip('project', `<i class="dot" style="background:${p.color}"></i>${esc(p.name)}`, 'project');
     r.tags.forEach((t) => chip(`tag:${t}`, `#${esc(t)}`, 'tag'));
     if (r.repeat) chip('repeat', `${icon('repeat', 13)}${r.repeat}`, 'repeat');
-    if (r.est) chip('est', `${icon('timer', 13)}${r.est}`, 'pomodoros');
+    if (r.est) chip('est', `${icon('timer', 13)}${r.est}`, 'planned focus sessions');
     chips.hidden = !c.length;
     chips.innerHTML = c.join('');
     if (hint) hint.hidden = !!input.value;
@@ -236,7 +243,12 @@ export function bindComposer(root, getDefaults = () => ({})) {
     if (row) {
       row.classList.add('fresh');
       row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    } else toast(t.due ? `added for ${fmtDate(t.due).toLowerCase()}` : 'added to inbox');
+    } else {
+      // the new task is not on this screen: say exactly where it went
+      const p = projectOf(t.project);
+      const where = p ? p.name.toLowerCase() : 'inbox';
+      toast(t.due ? `added for ${fmtDate(t.due).toLowerCase()}${p ? ` · ${where}` : ''}` : `added to ${where}`);
+    }
   });
 }
 
@@ -252,52 +264,56 @@ export function openTask(id) {
   if (!t0) return;
   const projects = store.get().projects;
   const seg = (name, items, cur) =>
-    `<div class="seg" data-seg="${name}">${items.map(([v, l]) => `<button type="button" data-v="${v ?? ''}" class="${(cur ?? '') === (v ?? '') ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    `<div class="seg" data-seg="${name}" role="group" aria-label="${name === 'prio' ? 'priority' : name}">${items.map(([v, l]) => `<button type="button" data-v="${v ?? ''}" class="${(cur ?? '') === (v ?? '') ? 'on' : ''}" aria-pressed="${(cur ?? '') === (v ?? '')}">${l}</button>`).join('')}</div>`;
 
+  // Title, notes, date and subtasks are always visible; the rest sits behind one "details" row
+  // that shows the current values and opens the editors on tap.
   const rec = openSheet(
     `<div class="ts">
-      <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button></div>
+      <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button>
+        ${t0.done ? '' : `<button type="button" class="btn primary" id="ts-start">${icon('play', 16)} start focus</button>`}</div>
       <div class="ts-head"><button class="check big p${t0.prio} ${t0.done ? 'on' : ''}" id="ts-check" aria-label="${t0.done ? 'mark as not done' : 'mark as done'}">${t0.done ? icon('check', 18) : ''}</button>
         <textarea id="ts-title" rows="1" placeholder="task name" enterkeyhint="done" aria-label="task name">${esc(t0.title)}</textarea></div>
       <textarea id="ts-notes" rows="1" placeholder="add notes…" aria-label="notes">${esc(t0.notes)}</textarea>
 
-      <div class="lbl">When</div>
+      <h2 class="lbl">when</h2>
       <div class="chips" id="ts-when">
-        <button type="button" class="chip" data-d="${todayStr()}">Today</button>
-        <button type="button" class="chip" data-d="${addDays(todayStr(), 1)}">Tomorrow</button>
-        <button type="button" class="chip" data-d="week">Next week</button>
-        <button type="button" class="chip" data-d="">No date</button>
-        <label class="chip date ${t0.due ? 'on' : ''}">${icon('calendar', 15)}<span id="ts-due-label">${t0.due ? fmtDate(t0.due) : 'Pick date'}</span><input type="date" id="ts-date" value="${t0.due || ''}" aria-label="pick a date"></label>
+        <button type="button" class="chip" data-d="${todayStr()}">today</button>
+        <button type="button" class="chip" data-d="${addDays(todayStr(), 1)}">tomorrow</button>
+        <button type="button" class="chip" data-d="week">next week</button>
+        <span class="chip-date"><label class="chip date">${icon('calendar', 15)}<span id="ts-due-label">pick date</span><input type="date" id="ts-date" value="${t0.due || ''}" aria-label="pick a date"></label><button type="button" class="chip date-x" id="ts-nodate" aria-label="remove the date" hidden>${icon('x', 15)}</button></span>
       </div>
 
-      <div class="lbl">Priority</div>
-      ${seg('prio', PRIO_LABEL.map((l, i) => [i, l]), t0.prio)}
-
-      <div class="lbl">Project</div>
-      <div class="chips" id="ts-proj">
-        <button type="button" class="chip ${!t0.project ? 'on' : ''}" data-p="">Inbox</button>
-        ${projects.map((p) => `<button type="button" class="chip ${t0.project === p.id ? 'on' : ''}" data-p="${p.id}"><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</button>`).join('')}
-      </div>
-
-      <div class="lbl">Repeat</div>
-      ${seg('repeat', REPEATS, t0.repeat)}
-
-      <div class="lbl">Status</div>
-      ${seg('status', [['todo', 'To do'], ['doing', 'Doing']], t0.status)}
-
-      <div class="lbl">Pomodoros <span class="muted">${t0.pomos} done · ${t0.focusMin} min</span></div>
-      <div class="stepper"><button type="button" data-est="-1" aria-label="Fewer">−</button><span id="ts-est">${t0.est}</span><button type="button" data-est="1" aria-label="More">+</button><span class="muted sm">planned</span></div>
-
-      <div class="lbl">Tags</div>
-      <input id="ts-tags" class="field" type="text" placeholder="work, urgent" value="${esc(t0.tags.join(', '))}" aria-label="tags">
-
-      <div class="lbl">Subtasks</div>
+      <h2 class="lbl">subtasks</h2>
       <div id="ts-subs"></div>
       <form id="ts-subform" class="subadd">${icon('plus', 16)}<input type="text" placeholder="add subtask" enterkeyhint="done" aria-label="add subtask"></form>
 
+      <button type="button" class="ts-sum" id="ts-sum" aria-expanded="false" aria-controls="ts-more"><span class="ts-sum-h">details</span><span class="ts-sum-c" id="ts-sum-c"></span>${icon('chevD', 18, 'ts-sum-ic')}</button>
+      <div class="ts-more" id="ts-more" hidden>
+        <h2 class="lbl">priority</h2>
+        ${seg('prio', PRIO_LABEL.map((l, i) => [i, l]), t0.prio)}
+
+        <h2 class="lbl">project</h2>
+        <div class="chips" id="ts-proj">
+          <button type="button" class="chip ${!t0.project ? 'on' : ''}" data-p="">inbox</button>
+          ${projects.map((p) => `<button type="button" class="chip ${t0.project === p.id ? 'on' : ''}" data-p="${p.id}"><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</button>`).join('')}
+        </div>
+
+        <h2 class="lbl">repeat</h2>
+        ${seg('repeat', REPEATS, t0.repeat)}
+
+        <h2 class="lbl">status</h2>
+        ${seg('status', [['todo', 'to do'], ['doing', 'doing']], t0.status)}
+
+        <h2 class="lbl">planned focus sessions <span class="muted">${t0.pomos} done · ${t0.focusMin} min</span></h2>
+        <div class="stepper"><button type="button" data-est="-1" aria-label="fewer focus sessions">−</button><span id="ts-est">${t0.est}</span><button type="button" data-est="1" aria-label="more focus sessions">+</button><span class="muted sm">planned</span></div>
+
+        <h2 class="lbl">tags</h2>
+        <input id="ts-tags" class="field" type="text" placeholder="work, urgent" value="${esc(t0.tags.join(', '))}" aria-label="tags">
+      </div>
+
       <div class="ts-actions">
-        ${t0.done ? '' : `<button class="btn primary grow" id="ts-start">${icon('play', 16)} Start focus</button>`}
-        <button class="btn ghost danger-ink ${t0.done ? 'grow' : ''}" id="ts-del" aria-label="delete task">${icon('trash', 18)}${t0.done ? ' delete' : ''}</button>
+        <button type="button" class="btn danger grow" id="ts-del">${icon('trash', 18)} delete task</button>
       </div>
     </div>`,
     { onClose: () => onClose() }
@@ -346,50 +362,78 @@ export function openTask(id) {
     });
     const custom = !!due && !presets[due];
     $('#ts-when .date').classList.toggle('on', custom);
-    $('#ts-due-label').textContent = custom ? fmtDate(due) : 'Pick date';
+    $('#ts-due-label').textContent = custom ? fmtDate(due) : 'pick date';
     $('#ts-date').value = due || '';
+    $('#ts-nodate').hidden = !due;
+    $('.chip-date').classList.toggle('has-x', !!due);
   };
   const setDue = (d) => (set({ due: d || null }, true), markWhen());
   markWhen();
   $('#ts-when').addEventListener('click', (e) => {
+    if (e.target.closest('#ts-nodate')) return setDue(null);
     const c = e.target.closest('.chip[data-d]');
     if (!c) return;
     setDue(c.dataset.d === 'week' ? nextMonday() : c.dataset.d);
   });
   $('#ts-date').addEventListener('change', (e) => setDue(e.target.value));
 
+  // the "details" row: current values as chips; tap to open / close the editors (stays as left while the sheet is open)
+  const summary = () => {
+    const t = cur();
+    if (!t) return;
+    const p = projectOf(t.project);
+    const parts = [];
+    if (t.prio) parts.push(`priority: ${PRIO_LABEL[t.prio]}`);
+    parts.push(`project: ${p ? esc(p.name) : 'inbox'}`);
+    if (t.repeat) parts.push(`repeat: ${t.repeat}`);
+    if (t.status === 'doing') parts.push('status: doing');
+    if (t.est || t.pomos) parts.push(`focus: ${t.pomos}/${t.est}`);
+    if (t.tags.length) parts.push(t.tags.map((x) => '#' + esc(x)).join(' '));
+    $('#ts-sum-c').innerHTML = parts.map((x) => `<span class="sum-chip">${x}</span>`).join('');
+  };
+  summary();
+  const sumBtn = $('#ts-sum');
+  sumBtn.onclick = () => {
+    const open = sumBtn.getAttribute('aria-expanded') !== 'true';
+    sumBtn.setAttribute('aria-expanded', open);
+    $('#ts-more').hidden = !open;
+    if (open) requestAnimationFrame(() => sumBtn.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  };
+
   rec.body.addEventListener('click', (e) => {
     const b = e.target.closest('.seg button');
     if (b) {
       const name = b.closest('.seg').dataset.seg;
-      b.closest('.seg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      b.closest('.seg').querySelectorAll('button').forEach((x) => (x.classList.toggle('on', x === b), x.setAttribute('aria-pressed', x === b)));
       if (name === 'prio') {
         set({ prio: Number(b.dataset.v) });
         $('#ts-check').className = `check big p${b.dataset.v} ${cur().done ? 'on' : ''}`;
       }
       if (name === 'repeat') set({ repeat: b.dataset.v || null });
       if (name === 'status') set({ status: b.dataset.v });
-      return;
+      return summary();
     }
     const pj = e.target.closest('#ts-proj .chip');
     if (pj) {
-      rec.body.querySelectorAll('#ts-proj .chip').forEach((x) => x.classList.toggle('on', x === pj));
+      rec.body.querySelectorAll('#ts-proj .chip').forEach((x) => (x.classList.toggle('on', x === pj), x.setAttribute('aria-pressed', x === pj)));
       set({ project: pj.dataset.p || null });
-      return;
+      return summary();
     }
     const est = e.target.closest('[data-est]');
     if (est) {
       const v = Math.max(0, Math.min(20, cur().est + Number(est.dataset.est)));
       set({ est: v });
       $('#ts-est').textContent = v;
+      summary();
     }
   });
 
-  $('#ts-tags').addEventListener('input', (e) => set({ tags: parseTags(e.target.value) }, true));
+  $('#ts-tags').addEventListener('input', (e) => (set({ tags: parseTags(e.target.value) }, true), summary()));
   $('#ts-tags').addEventListener('change', (e) => {
     const tags = parseTags(e.target.value);
     set({ tags });
     e.target.value = tags.join(', ');
+    summary();
   });
 
   // subtasks
@@ -453,11 +497,11 @@ export function openProject(id, onDone) {
   const p = id ? projectOf(id) : null;
   let color = p?.color || PROJECT_COLORS[Math.floor(Math.random() * 6)];
   const rec = openSheet(
-    `<div class="ts"><h2 class="sh">${p ? 'Edit project' : 'New project'}</h2>
+    `<div class="ts"><h2 class="sh">${p ? 'edit project' : 'new project'}</h2>
       <input id="pj-name" class="field big" type="text" placeholder="project name" aria-label="project name" value="${esc(p?.name || '')}" maxlength="30">
-      <div class="lbl">Colour</div>
+      <h3 class="lbl">colour</h3>
       <div class="swatches">${PROJECT_COLORS.map((c, i) => `<button type="button" class="sw ${c === color ? 'on' : ''}" data-c="${c}" style="background:${c}" aria-label="colour ${i + 1}" aria-pressed="${c === color}"></button>`).join('')}</div>
-      <div class="ts-actions"><button class="btn primary grow" id="pj-save">${p ? 'Save' : 'Create project'}</button>${p ? `<button class="btn ghost danger-ink" id="pj-del" aria-label="delete project">${icon('trash', 18)}</button>` : ''}</div></div>`,
+      <div class="ts-actions"><button class="btn primary grow" id="pj-save">${p ? 'save' : 'create project'}</button>${p ? `<button class="btn danger" id="pj-del">${icon('trash', 18)} delete</button>` : ''}</div></div>`,
     { cls: 'small' }
   );
   const name = rec.body.querySelector('#pj-name');
@@ -485,6 +529,6 @@ export function openProject(id, onDone) {
       rec.close();
       const snap = store.deleteProject(id);
       onDone?.(null);
-      if (snap) toast(`project deleted. its tasks moved to inbox`, { action: 'undo', onAction: () => store.restoreProject(snap) });
+      if (snap) toast('project deleted. its tasks moved to inbox (no project)', { action: 'undo', onAction: () => store.restoreProject(snap) });
     };
 }

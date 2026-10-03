@@ -3,6 +3,7 @@ import * as store from './store.js';
 import * as theme from './theme.js';
 import { openSheet, sheetHeader, closeBtn, confirmDialog, toast } from './ui.js';
 import { esc, ymd } from './util.js';
+import { icon } from './icons.js';
 import { VERSION } from './version.js';
 import * as push from './push.js';
 import { install as runInstall, isStandalone, onInstallChange } from './install.js';
@@ -15,7 +16,7 @@ const STEPPERS = [
   { k: 'focus', label: 'Focus', min: 5, max: 90, step: 5, unit: 'min' },
   { k: 'short', label: 'Short break', min: 1, max: 30, step: 1, unit: 'min' },
   { k: 'long', label: 'Long break', min: 5, max: 60, step: 5, unit: 'min' },
-  { k: 'every', label: 'Long break every', min: 2, max: 8, step: 1, unit: 'sessions' },
+  { k: 'every', label: 'Long break after', min: 2, max: 8, step: 1, unit: 'sessions' },
   { k: 'goal', label: 'Daily goal', min: 1, max: 16, step: 1, unit: 'sessions' },
 ];
 
@@ -43,25 +44,48 @@ function html() {
     (p) => `<div class="set-row"><span>${p.label}</span><div class="set-step"><button data-step="${p.k}" data-d="-1" aria-label="less ${p.label.toLowerCase()}" ${s[p.k] <= p.min ? 'disabled' : ''}>&minus;</button><output aria-live="polite"><b>${s[p.k]}</b> <small>${p.unit}</small></output><button data-step="${p.k}" data-d="1" aria-label="more ${p.label.toLowerCase()}" ${s[p.k] >= p.max ? 'disabled' : ''}>+</button></div></div>`
   ).join('');
   const tog = TOGGLES.map(
-    (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
+    (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
   ).join('');
+  // plain-language help: the quick-add words and the hidden gestures
+  const helpRow = (k, v) => `<div class="help-row"><dt>${k}</dt><dd>${v}</dd></div>`;
+  const help = `<h4 class="help-h">quick add: type these in the bar</h4>
+    <dl class="help">
+      ${helpRow('tomorrow, fri, next week, in 3 days', 'sets the date')}
+      ${helpRow('!1 · !2 · !3', '!1 high · !2 medium · !3 low priority')}
+      ${helpRow('#gym', 'adds a tag')}
+      ${helpRow('@work', 'puts it in a project')}
+      ${helpRow('*2', 'plans 2 focus sessions')}
+      ${helpRow('every week, daily', 'makes it repeat')}
+    </dl>
+    <p class="set-hint">tap a word in the preview above the bar to keep it as plain text.</p>
+    <h4 class="help-h">gestures</h4>
+    <dl class="help">
+      ${helpRow('press and hold a task', 'quick actions: move the date, focus, delete')}
+      ${helpRow('swipe a sheet down', 'closes it (so does the back gesture)')}
+      ${helpRow('tap the timer dial', 'starts or pauses the timer')}
+    </dl>`;
   const test = push.enabled() ? `<button class="btn ghost set-btn" data-act="testpush">Test: ring in 10 seconds</button>` : push.configured() ? '' : `<p class="set-hint">Locked-phone alarm is not set up yet.</p>`;
   const install = isStandalone() ? '' : `<button class="btn primary set-btn" data-act="install">Install app</button>`;
   return `${sheetHeader('Settings', closeBtn())}
   <div class="set-body">
-    <h4 class="set-h">Appearance</h4>
+    <h3 class="set-h">Appearance</h3>
     <div class="set-card"><div class="set-seg">${seg}</div><div class="set-swatches">${sw}</div></div>
-    <h4 class="set-h">Timer</h4>
+    <h3 class="set-h">Timer</h3>
     <div class="set-card">${steps}</div>
     <div class="set-card">${tog}${test}</div>
-    <h4 class="set-h">Data</h4>
+    <h3 class="set-h">Data</h3>
     <div class="set-card">
       <p class="set-hint">Everything is stored only on this phone. Export a backup now and then.</p>
       <div class="set-btns"><button class="btn ghost set-btn" data-act="export">Export backup</button><button class="btn ghost set-btn" data-act="import">Import backup</button></div>
       <input type="file" accept="application/json,.json" hidden data-file>
-      <button class="btn danger set-btn" data-act="reset">Reset everything</button>
+      <div class="set-danger">
+        <p class="set-hint">erases every task, note and stat on this phone.</p>
+        <button class="btn danger set-btn" data-act="reset">${icon('trash', 18)} reset everything</button>
+      </div>
     </div>
-    <h4 class="set-h">About</h4>
+    <h3 class="set-h">help</h3>
+    <div class="set-card set-help">${help}</div>
+    <h3 class="set-h">About</h3>
     <div class="set-card"><div class="set-row"><span>to-do</span><span class="set-ver">v${esc(VERSION)}</span></div>${install}</div>
   </div>`;
 }
@@ -81,7 +105,7 @@ async function doImport(file) {
   try {
     const data = JSON.parse(await file.text());
     if (!data || !Array.isArray(data.tasks) || !Array.isArray(data.pages)) throw new Error('bad');
-    const ok = await confirmDialog('This replaces all current tasks, notes and stats with the backup.', { ok: 'Replace', title: 'Import backup?' });
+    const ok = await confirmDialog('this replaces all current tasks, notes and stats with the backup.', { ok: 'replace my data', title: 'import backup?' });
     if (!ok) return;
     store.replaceAll(data);
     theme.applyTheme();
@@ -141,7 +165,7 @@ export function openSettings() {
       toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
     }
     else if (act === 'reset') {
-      const ok = await confirmDialog('All tasks, notes, sessions and settings on this phone will be erased. This cannot be undone.', { ok: 'Erase everything', title: 'Reset to-do?' });
+      const ok = await confirmDialog('all tasks, notes, sessions and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
       if (ok) {
         store.resetAll(); // stops the app from saving the old data back while it reloads
         location.reload();

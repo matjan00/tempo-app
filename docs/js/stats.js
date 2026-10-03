@@ -36,7 +36,8 @@ function streak(byDay, today) {
 }
 
 function barChart(days, byDay, today) {
-  const W = 340, H = 170, padL = 4, padR = 4, top = 14, bot = 22;
+  // drawn at roughly phone width, so the 13-unit labels render at >= 12px on screen
+  const W = 300, H = 170, padL = 4, padR = 4, top = 18, bot = 24;
   const vals = days.map((d) => byDay[d] || 0);
   const rawMax = Math.max(...vals, 30);
   const step = rawMax <= 60 ? 15 : rawMax <= 180 ? 30 : rawMax <= 480 ? 60 : 120;
@@ -146,14 +147,14 @@ export function render(root) {
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button></header>
     <div class="stat-wrap">
       <div class="stat-cards">${cards}</div>
-      ${hasData ? '' : `<div class="stat-empty">${icon('timer', 34)}<h3>Nothing to chart yet</h3><p>Finish a focus session and your minutes, streak and habits will show up here.</p></div>`}
+      ${hasData ? '' : `<div class="stat-empty">${icon('timer', 34)}<h2>Nothing to chart yet</h2><p>Finish a focus session and your minutes, streak and habits will show up here.</p></div>`}
       <section class="stat-box">
-        <div class="stat-boxhead"><h3>Focus minutes</h3>
+        <div class="stat-boxhead"><h2>Focus minutes</h2>
           <div class="stat-seg" role="group" aria-label="chart range"><button data-range="week" class="${range === 'week' ? 'on' : ''}" aria-pressed="${range === 'week'}">Week</button><button data-range="month" class="${range === 'month' ? 'on' : ''}" aria-pressed="${range === 'month'}">30 days</button></div></div>
         ${barChart(days, byDay, today)}
       </section>
-      <section class="stat-box"><div class="stat-boxhead"><h3>Last 15 weeks</h3></div>${heatmap(byDay, today)}</section>
-      <section class="stat-box"><div class="stat-boxhead"><h3>Focus by project</h3></div>${projects(byProject, st)}</section>
+      <section class="stat-box"><div class="stat-boxhead"><h2>Last 15 weeks</h2></div>${heatmap(byDay, today)}</section>
+      <section class="stat-box"><div class="stat-boxhead"><h2>Focus by project</h2></div>${projects(byProject, st)}</section>
     </div>`;
 
   root.onclick = (e) => {

@@ -22,68 +22,68 @@ const EMOJIS = ['📄', '📝', '📓', '📔', '📚', '📖', '🗒️', '📋
 
 const b = (type, text = '') => store.newBlock(type, text);
 const TEMPLATES = [
-  { name: 'Blank', icon: '📄', title: '', blocks: () => [b('p')] },
+  { name: 'blank', icon: '📄', title: '', blocks: () => [b('p')] },
   {
-    name: 'Meeting notes',
+    name: 'meeting notes',
     icon: '🗒️',
-    title: 'Meeting notes',
+    title: 'meeting notes',
     blocks: () => [
-      b('p', 'Date: '),
-      b('p', 'Attendees: '),
-      b('h2', 'Agenda'),
+      b('p', 'date: '),
+      b('p', 'attendees: '),
+      b('h2', 'agenda'),
       b('bullet'),
-      b('h2', 'Notes'),
+      b('h2', 'notes'),
       b('p'),
-      b('h2', 'Action items'),
+      b('h2', 'action items'),
       b('todo'),
     ],
   },
   {
-    name: 'Weekly plan',
+    name: 'weekly plan',
     icon: '📅',
-    title: 'Weekly plan',
+    title: 'weekly plan',
     blocks: () => [
-      b('h2', 'Top 3 priorities'),
+      b('h2', 'top 3 priorities'),
       b('todo'),
       b('todo'),
       b('todo'),
-      b('h2', 'Monday'),
+      b('h2', 'monday'),
       b('bullet'),
-      b('h2', 'Tuesday'),
+      b('h2', 'tuesday'),
       b('bullet'),
-      b('h2', 'Wednesday'),
+      b('h2', 'wednesday'),
       b('bullet'),
-      b('h2', 'Thursday'),
+      b('h2', 'thursday'),
       b('bullet'),
-      b('h2', 'Friday'),
+      b('h2', 'friday'),
       b('bullet'),
-      b('h2', 'Review'),
-      b('p', 'What went well, what to change next week?'),
+      b('h2', 'review'),
+      b('p', 'what went well, what to change next week?'),
     ],
   },
   {
-    name: 'Project brief',
+    name: 'project brief',
     icon: '🎯',
-    title: 'Project brief',
+    title: 'project brief',
     blocks: () => [
-      b('h2', 'Goal'),
+      b('h2', 'goal'),
       b('p'),
-      b('h2', 'Why it matters'),
+      b('h2', 'why it matters'),
       b('p'),
-      b('h2', 'Scope'),
+      b('h2', 'scope'),
       b('bullet'),
-      b('h2', 'Milestones'),
+      b('h2', 'milestones'),
       b('todo'),
       b('todo'),
-      b('h2', 'Risks'),
+      b('h2', 'risks'),
       b('bullet'),
     ],
   },
   {
-    name: 'Reading list',
+    name: 'reading list',
     icon: '📚',
-    title: 'Reading list',
-    blocks: () => [b('h2', 'To read'), b('todo'), b('todo'), b('h2', 'Reading now'), b('bullet'), b('h2', 'Favourite quotes'), b('quote')],
+    title: 'reading list',
+    blocks: () => [b('h2', 'to read'), b('todo'), b('todo'), b('h2', 'reading now'), b('bullet'), b('h2', 'favourite quotes'), b('quote')],
   },
 ];
 
@@ -110,7 +110,7 @@ function rowHtml(pg) {
 function listHtml() {
   const all = store.get().pages;
   if (!all.length)
-    return `<div class="empty"><div class="notes-empty-ic">${icon('notes', 34)}</div><h3>No notes yet</h3><p>Capture ideas, plans and lists in pages that work like Notion.</p><button class="btn primary" data-act="new">New page</button></div>`;
+    return `<div class="empty notes-empty"><div class="notes-empty-ic">${icon('notes', 34)}</div><h2>no notes yet</h2><p>capture ideas, plans and lists in pages that work like notion.</p><button class="btn primary" data-act="new">${icon('plus', 18)} new page</button></div>`;
   const needle = q.trim().toLowerCase();
   let pages = [...all].sort((a, c) => c.updated - a.updated);
   if (needle)
@@ -126,9 +126,10 @@ function listHtml() {
 
 export function render(root) {
   const n = store.get().pages.length;
+  if (!n) q = ''; // the search field only shows once there is a page to search
   root.innerHTML = `<header class="top"><div><div class="eyebrow">${n} ${n === 1 ? 'page' : 'pages'}</div><h1>Notes</h1></div>
       <button class="icon-btn" data-act="new" aria-label="new page">${icon('plus', 22)}</button></header>
-    <label class="notes-search">${icon('search', 18)}<input type="search" data-q data-keep="notesq" placeholder="search notes" aria-label="search notes" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>
+    ${n ? `<label class="notes-search">${icon('search', 18)}<input type="search" data-q data-keep="notesq" placeholder="search notes" aria-label="search notes" value="${esc(q)}" autocomplete="off" enterkeyhint="search"></label>` : ''}
     <div class="notes-list">${listHtml()}</div>`;
 
   root.oninput = (e) => {

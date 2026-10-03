@@ -336,7 +336,7 @@ function seed(s) {
       b('bullet', 'Type "[] " for a checkbox, "> " for a quote, "---" for a line'),
       b('h2', 'Quick add for tasks'),
       b('todo', 'Write: call mom tomorrow !1 #family  — date, priority and tag are picked up automatically'),
-      b('todo', 'Write: gym every weekday *1  — repeats and plans one pomodoro'),
+      b('todo', 'Write: gym every weekday *1  — repeats and plans one focus session'),
       b('todo', 'Picked up a word by mistake (like "sat" in a title)? Tap its chip above the bar to keep it as text'),
       b('quote', 'Your data stays on this phone. Back it up in Settings → Export.'),
     ],

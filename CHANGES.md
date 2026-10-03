@@ -1,3 +1,65 @@
+# Changes: critique fixes
+
+Done after the design critique of 3 Oct 2026. Storage keys and the data format are unchanged (priority, status and every other field keep their shape), so no migration was needed. `tempo.theme` now also stores the accent text colour; older saved values still work. No new files, dependencies or network requests. `supabase/`, `scripts/setup-push.cjs` and `docs/js/push-config.js` were not touched.
+
+## Safety
+- **Destructive buttons look dangerous.** They now have a red outline and a red label (a darker red in light mode so it stays readable). This covers "delete task", "delete project", "reset everything" and delete in the quick-actions sheet.
+- **Confirm dialog**: "cancel" is the solid black button. The destructive button is outlined in red, with 20px between the two.
+- **Settings**: "reset everything" sits apart from export and import, below a divider, with a line explaining what it erases.
+
+## Toasts
+- Toasts now sit at the bottom, just above the quick-add bar (or above the tab bar or the notes toolbar). They never cover those bars, and they follow the bar when it moves or grows.
+- Toasts slide up from below. At most 3 show at once.
+- Undo toasts stay for 7 seconds. Touching or holding a toast pauses its countdown.
+
+## Contrast and size
+- **Red accent**: buttons, the + button, play, install and the switches now use dark text on red (5.1:1, was 3.7:1). The other accent colours were checked too: each one's text colour reaches at least 4.5:1 on it.
+- **Small red text** (today, overdue, priority marks, the active tab label) uses a darker red in light mode (#c4111b, 5.2:1). Dark mode keeps the bright red, which passes there.
+- **Muted grey** in light mode is a little darker (#5c5c5c), so it reaches 4.5:1 on the grey board columns.
+- **No text below 12px.** This covers tab labels, count badges, the "working on" label, and the chart and month labels in stats.
+- **Bigger tap areas** (at least 44px) on subtask checkboxes, the notes search field and the settings switches. The visible size is unchanged.
+- **Heading levels no longer skip.** Today, tasks, stats and notes go h1 → h2. Settings goes h2 → h3 → h4. Sheets and the confirm dialog use h2.
+- **Dark mode shadows** are a lighter grey (#8a8a8a) so they show on black.
+
+## Task sheet
+- "start focus" is pinned in the top bar, next to "back". "delete task" stays at the bottom.
+- Always visible: title, notes, date and subtasks. Priority, project, repeat, status, planned focus sessions and tags are folded into one "details" row. The row shows the current values (e.g. "priority: high · project: work · focus: 0/3"). Tap it to open the editors.
+- **Date choices**: today, tomorrow, next week, pick date. To clear the date, tap the × next to the date chip.
+- "pomodoros" is now called "planned focus sessions" everywhere.
+
+## Focus screen
+- **Running vs idle**: while the timer runs, the dial turns solid black with light digits and sinks into its shadow, and the colon blinks. With reduce motion turned on, the colon does not blink. Idle and paused keep the light dial.
+- **Less repetition**:
+  - The mode switch (focus / short / long) moved into the header, and the visible "focus" title and dial label are gone.
+  - The session count appears once, as the squares plus "session 1 of 4".
+  - The four sound chips are now one button that cycles off → brown → pink → white.
+- The whole screen fits on a 360×780 phone without scrolling.
+
+## Today
+- **"next up" card**: when something is due today or overdue, a card shows the most important one (highest priority, then the oldest date), its focus sessions, and a big "start focus" button.
+- **Progress line**: the 0% ring is replaced by "2 of 5 done" (plus focus minutes) and a thin segmented bar. It only shows once something is planned or done.
+- **Install banner** is now one slim row. You can still hide it, and the app remembers.
+- "from your inbox" is renamed "unplanned tasks" (no date and no project). "inbox" now always means "no project".
+
+## Priority and board
+- Priority is now one signal everywhere: `!` low, `!!` medium, `!!!` high, in red, plus a heavier checkbox for high. The pink checkbox tints and the blue, amber and red board flags are gone.
+- **Board cards**:
+  - "today" is shown in red, like in the list.
+  - Press and hold a card for quick actions.
+  - The move buttons have words ("doing >", "< to do") and are 44px tall.
+  - The column count badges have padding.
+- The list/board switch in the tasks header is a labelled "list | board" control.
+
+## Settings, notes, search, quick add
+- **Switches**: when off, the box is empty with an outlined knob and the word "off". When on, the box is filled with red and the word is "on".
+- **Timer steppers**: "long break every" is now "long break after". Values and units stay on one line and line up.
+- **New "help" section** explains the quick-add words in plain English ("!1 high · !2 medium · !3 low", #tag, @project, *2, dates, repeats) and the hidden gestures.
+- **Note templates** insert lowercase text ("agenda", "date: "…).
+- The notes search field only appears once there is at least one page.
+- In the empty notes screen, the title is black and the explanation is grey.
+- **Tasks search** waits about 120 ms after typing and redraws only the list, not the search field. The keyboard's word suggestions and the cursor are no longer interrupted.
+- **Quick add** says where a task went when it doesn't appear on the current screen: "added for tomorrow", "added for fri · work", "added to work", "added to inbox".
+
 # Changes: polish pass
 
 Storage keys (`tempo.v1`, `tempo.theme`, `tempo.tab`, `tempo.hideInstall`) are unchanged. Old saves and old backups still load. `migrate()` only fills in missing fields. No new files or dependencies. `supabase/`, `scripts/setup-push.cjs` and `docs/js/push-config.js` were not touched.

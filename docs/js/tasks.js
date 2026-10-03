@@ -1,7 +1,7 @@
 import * as store from './store.js';
-import { taskRow, handleTaskClick, composer, bindComposer, openProject, projectOf, openTask, toggleDone } from './components.js';
+import { taskRow, handleTaskClick, composer, bindComposer, openProject, projectOf, openTask, toggleDone, prioMark } from './components.js';
 import { icon } from './icons.js';
-import { esc, todayStr, addDays, diffDays, fmtDate } from './util.js';
+import { esc, todayStr, diffDays, fmtDate } from './util.js';
 
 // UI state that should survive re-renders
 let view = 'list'; // list | board
@@ -33,75 +33,99 @@ function groups(open) {
   return g;
 }
 
+const COLS = { todo: 'to do', doing: 'doing', done: 'done' };
+
 function board(all) {
+  const today = todayStr();
   const cols = [
-    ['todo', 'To do', all.filter((t) => !t.done && t.status !== 'doing').sort(byOrder)],
-    ['doing', 'Doing', all.filter((t) => !t.done && t.status === 'doing').sort(byOrder)],
-    ['done', 'Done', all.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 30)],
+    ['todo', all.filter((t) => !t.done && t.status !== 'doing').sort(byOrder)],
+    ['doing', all.filter((t) => !t.done && t.status === 'doing').sort(byOrder)],
+    ['done', all.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 30)],
   ];
+  const mv = (to, back) =>
+    `<button type="button" class="ck-mv ${back ? 'back' : ''}" data-mv="${to}" aria-label="move to ${COLS[to]}">${back ? `${icon('chevL', 15)}${COLS[to]}` : `${COLS[to]}${icon('chevR', 15)}`}</button>`;
   return `<div class="board">${cols
     .map(
-      ([k, label, list]) => `<div class="col" data-col="${k}"><h3>${label}<span>${list.length}</span></h3>
+      ([k, list]) => `<section class="col" data-col="${k}" aria-label="${COLS[k]}"><h2>${COLS[k]}<span>${list.length}</span></h2>
       ${list
         .map((t) => {
           const p = projectOf(t.project);
+          const cls = t.due && !t.done ? (t.due < today ? 'late' : t.due === today ? 'today' : '') : '';
           return `<div class="card-k ${t.done ? 'done' : ''}" data-id="${t.id}"><button type="button" class="ck-t" data-act="open">${esc(t.title) || '<span class="muted">untitled</span>'}</button>
-          <div class="ck-m">${t.due ? `<span class="m ${!t.done && t.due < todayStr() ? 'late' : ''}">${fmtDate(t.due)}</span>` : ''}${p ? `<span class="m"><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</span>` : ''}${t.prio ? `<span class="m p${t.prio}-f">${icon('flag', 12)}</span>` : ''}</div>
-          <div class="ck-a">${k !== 'todo' ? `<button class="icon-btn" data-mv="${k === 'doing' ? 'todo' : 'doing'}" aria-label="move to ${k === 'doing' ? 'to do' : 'doing'}">${icon('chevL', 16)}</button>` : '<span></span>'}${k !== 'done' ? `<button class="icon-btn" data-mv="${k === 'todo' ? 'doing' : 'done'}" aria-label="move to ${k === 'todo' ? 'doing' : 'done'}">${icon('chevR', 16)}</button>` : ''}</div></div>`;
+          <div class="ck-m">${prioMark(t.prio)}${t.due ? `<span class="m ${cls}">${fmtDate(t.due)}</span>` : ''}${p ? `<span class="m"><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</span>` : ''}</div>
+          <div class="ck-a">${k !== 'todo' ? mv(k === 'doing' ? 'todo' : 'doing', true) : '<span></span>'}${k !== 'done' ? mv(k === 'todo' ? 'doing' : 'done', false) : ''}</div></div>`;
         })
-        .join('') || '<div class="col-empty">Nothing here</div>'}</div>`
+        .join('') || '<div class="col-empty">nothing here</div>'}</section>`
     )
     .join('')}</div>`;
+}
+
+// Everything below the filter chips. Re-drawn on its own while searching, so the search field
+// (and the keyboard's word suggestions) is never replaced mid-word.
+function bodyHtml() {
+  const st = store.get();
+  const scoped = st.tasks.filter(matches);
+  const open = scoped.filter((t) => !t.done);
+  const done = scoped.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const curProject = projectOf(filter);
+  if (view === 'board') return { html: board(scoped), open: open.length };
+  const g = groups([...open]);
+  let body = Object.entries(g)
+    .filter(([, l]) => l.length)
+    .map(([label, l]) => `<section class="sec ${label === 'Overdue' ? 'late' : ''}"><h2>${label}<span>${l.length}</span></h2>${l.map((t) => taskRow(t, { showProject: !curProject })).join('')}</section>`)
+    .join('');
+  if (!open.length)
+    body = `<div class="empty">${icon('tasks', 34)}<p>${search ? 'no tasks match your search.' : done.length ? 'everything here is done.' : curProject ? `no tasks in ${esc(curProject.name)} yet.` : filter === 'inbox' ? 'nothing in your inbox (tasks without a project).' : 'no tasks yet.'}</p><small>${search ? 'try another word or a #tag.' : 'type one in the bar below.'}</small></div>`;
+  if (done.length)
+    body += `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Completed<span>${done.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? done.slice(0, 50).map((t) => taskRow(t, { showProject: !curProject })).join('') : ''}</section>`;
+  return { html: body, open: open.length };
 }
 
 export function render(root) {
   const st = store.get();
   if (filter !== 'all' && filter !== 'inbox' && !projectOf(filter)) filter = 'all'; // project was deleted
-  const scoped = st.tasks.filter(matches);
-  const open = scoped.filter((t) => !t.done);
-  const done = scoped.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
   const curProject = projectOf(filter);
+  const body = bodyHtml();
 
-  const chip = (k, label, extra = '') => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}">${extra}${label}</button>`;
-  let body;
-  if (view === 'board') body = board(scoped);
-  else {
-    const g = groups([...open]);
-    body = Object.entries(g)
-      .filter(([, l]) => l.length)
-      .map(([label, l]) => `<section class="sec ${label === 'Overdue' ? 'late' : ''}"><h3>${label}<span>${l.length}</span></h3>${l.map((t) => taskRow(t, { showProject: !curProject })).join('')}</section>`)
-      .join('');
-    if (!open.length)
-      body = `<div class="empty">${icon('tasks', 34)}<p>${search ? 'No tasks match your search.' : done.length ? 'Everything here is done.' : curProject ? `No tasks in ${esc(curProject.name)} yet.` : filter === 'inbox' ? 'Your inbox is empty.' : 'No tasks yet.'}</p><small>${search ? 'Try another word or a #tag.' : 'Type one in the bar below.'}</small></div>`;
-    if (done.length)
-      body += `<section class="sec dim"><button class="h3btn" data-act="toggleDone"><h3>Completed<span>${done.length}</span></h3>${icon(showDone ? 'chevD' : 'chevR', 16)}</button>${showDone ? done.slice(0, 50).map((t) => taskRow(t, { showProject: !curProject })).join('') : ''}</section>`;
-  }
+  const chip = (k, label, extra = '') => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}" aria-pressed="${filter === k}">${extra}${label}</button>`;
+  const vbtn = (k) => `<button type="button" data-view="${k}" class="${view === k ? 'on' : ''}" aria-pressed="${view === k}">${k}</button>`;
 
   root.innerHTML = `
-    <header class="top"><div><div class="eyebrow">${open.length} open</div><h1>Tasks</h1></div>
+    <header class="top"><div><div class="eyebrow" id="tasks-count">${body.open} open</div><h1>Tasks</h1></div>
       <div class="top-btns"><button class="icon-btn ${searching ? 'on' : ''}" data-act="search" aria-label="search tasks" aria-pressed="${searching}">${icon('search', 21)}</button>
-      <button class="icon-btn" data-act="view" aria-label="${view === 'list' ? 'show as board' : 'show as list'}">${icon(view === 'list' ? 'board' : 'list', 21)}</button></div></header>
+      <div class="seg view-seg" role="group" aria-label="show tasks as">${vbtn('list')}${vbtn('board')}</div></div></header>
     ${searching ? `<input class="search" data-keep="search" type="search" placeholder="search tasks, notes, #tags" aria-label="search tasks" value="${esc(search)}">` : ''}
     <div class="chips scroll" id="filters">${chip('all', 'All')}${chip('inbox', 'Inbox')}${st.projects.map((p) => chip(p.id, esc(p.name), `<i class="dot" style="background:${p.color}"></i>`)).join('')}<button class="chip add" data-act="newproj" aria-label="new project">${icon('plus', 15)}</button></div>
-    ${curProject ? `<button class="proj-edit" data-act="editproj">${icon('more', 18)} Edit project</button>` : ''}
-    ${body}
+    ${curProject ? `<button class="proj-edit" data-act="editproj">${icon('more', 18)} edit project</button>` : ''}
+    <div class="tasks-body">${body.html}</div>
     ${composer({ placeholder: curProject ? `add to ${curProject.name}…` : filter === 'inbox' ? 'add to inbox…' : 'add a task…' })}`;
 
   bindComposer(root, () => ({ project: curProject?.id || null }));
   const s = root.querySelector('.search');
   if (s) {
-    s.addEventListener('input', () => {
-      search = s.value;
-      const pos = s.selectionStart;
-      render(root);
-      const n = root.querySelector('.search');
-      n?.focus();
-      n?.setSelectionRange(pos, pos);
-    });
+    let t = null;
+    const update = () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        if (search === s.value) return;
+        search = s.value;
+        const b = bodyHtml();
+        const host = root.querySelector('.tasks-body');
+        if (!host) return;
+        host.innerHTML = b.html;
+        const c = root.querySelector('#tasks-count');
+        if (c) c.textContent = `${b.open} open`;
+      }, 120);
+    };
+    s.addEventListener('input', (e) => !e.isComposing && update());
+    s.addEventListener('compositionend', update);
     if (!search && searching) setTimeout(() => s.focus(), 0);
   }
 
   root.onclick = (e) => {
+    // the end of a long-press on a board card (the quick-actions sheet is already open)
+    const held = e.target.closest('.card-k[data-held]');
+    if (held) return delete held.dataset.held;
     if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
     const mv = e.target.closest('[data-mv]');
     if (mv) {
@@ -116,9 +140,10 @@ export function render(root) {
     }
     const f = e.target.closest('[data-f]');
     if (f) return (filter = f.dataset.f), render(root);
+    const v = e.target.closest('[data-view]');
+    if (v) return v.dataset.view !== view && ((view = v.dataset.view), render(root));
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'open') return openTask(e.target.closest('.card-k').dataset.id);
-    if (a === 'view') return (view = view === 'list' ? 'board' : 'list'), render(root);
     if (a === 'search') return (searching = !searching), searching || (search = ''), render(root);
     if (a === 'toggleDone') return (showDone = !showDone), render(root);
     if (a === 'newproj') return openProject(null, (id) => id && ((filter = id), render(root)));

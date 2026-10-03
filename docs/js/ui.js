@@ -125,38 +125,90 @@ addEventListener('keydown', (e) => {
   }
 });
 
-// Toasts: newest on top of the stack, at most 3 at once. With an action (e.g. "undo") they stay a bit longer.
+// Toasts sit at the bottom, in thumb reach: just above the quick-add bar (or the tab bar / the notes toolbar),
+// never on top of them. Newest at the bottom, at most 3 at once.
+const DOCKS = '.pg-dock.on, .composer, #nav';
+let watched = null;
+const resizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(() => placeToasts()) : null;
+export function placeToasts() {
+  if (!toasts.children.length) return;
+  const vh = window.innerHeight;
+  let top = vh;
+  let composer = null;
+  for (const el of document.querySelectorAll(DOCKS)) {
+    const r = el.getBoundingClientRect();
+    if (!r.height || getComputedStyle(el).display === 'none' || r.top >= vh) continue;
+    if (el.classList.contains('composer')) composer = el;
+    top = Math.min(top, r.top);
+  }
+  toasts.style.bottom = `${Math.max(12, vh - top + 10)}px`;
+  // the quick-add bar grows when its preview chips appear: follow it
+  if (resizeWatch && composer !== watched) {
+    if (watched) resizeWatch.unobserve(watched);
+    if (composer) resizeWatch.observe(composer);
+    watched = composer;
+  }
+}
+addEventListener('resize', () => placeToasts());
+window.visualViewport?.addEventListener('resize', () => placeToasts());
+['focusin', 'focusout'].forEach((ev) => document.addEventListener(ev, () => setTimeout(placeToasts, 80)));
+
+// With an action (e.g. "undo") a toast stays ~7 s; touching / holding it pauses the countdown.
 export function toast(msg, { action, onAction, ms } = {}) {
-  ms ??= action ? 5000 : 3400;
+  ms ??= action ? 7000 : 3400;
   while (toasts.children.length >= 3) toasts.firstElementChild.remove();
   const el = document.createElement('div');
   el.className = 'toast';
   el.setAttribute('role', 'status');
   el.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action)}</button>` : ''}`;
   toasts.appendChild(el);
+  placeToasts();
   requestAnimationFrame(() => el.classList.add('in'));
   let dead = false;
+  let timer = null;
+  let left = ms;
+  let since = 0;
   const kill = () => {
     if (dead) return;
     dead = true;
+    clearTimeout(timer);
     el.classList.remove('in');
     setTimeout(() => el.remove(), 250);
   };
+  const run = () => {
+    if (dead || timer) return;
+    since = Date.now();
+    timer = setTimeout(kill, left);
+  };
+  const hold = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+    left = Math.max(1500, left - (Date.now() - since));
+  };
+  el.addEventListener('pointerdown', hold);
+  el.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hold());
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => el.addEventListener(ev, run));
   el.querySelector('button')?.addEventListener('click', () => {
     if (dead) return;
     onAction?.();
     kill();
   });
-  setTimeout(kill, ms);
+  run();
   return kill;
 }
 
-export function confirmDialog(message, { ok = 'Delete', danger = true, title = 'Are you sure?' } = {}) {
+// "cancel" is the safe, visually primary choice; the destructive one is outlined in red and kept apart.
+export function confirmDialog(message, { ok = 'delete', danger = true, title = 'are you sure?' } = {}) {
   return new Promise((resolve) => {
     let answered = false;
     const rec = openSheet(
-      `<div class="confirm"><h3>${esc(title)}</h3><p>${esc(message)}</p>
-        <div class="row-btns"><button class="btn ghost" data-r="0">Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${esc(ok)}</button></div></div>`,
+      `<div class="confirm"><h2>${esc(title)}</h2><p>${esc(message)}</p>
+        <div class="row-btns confirm-btns">${
+          danger
+            ? `<button class="btn danger" data-r="1">${esc(ok)}</button><button class="btn safe" data-r="0">cancel</button>`
+            : `<button class="btn ghost" data-r="0">cancel</button><button class="btn primary" data-r="1">${esc(ok)}</button>`
+        }</div></div>`,
       { cls: 'small', onClose: () => !answered && resolve(false) }
     );
     rec.body.addEventListener('click', (e) => {

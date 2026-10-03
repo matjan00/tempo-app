@@ -20,6 +20,7 @@
     r.dataset.theme = t.theme;
     r.style.setProperty('--accent', t.accent);
     r.style.setProperty('--accent-ink', t.ink);
+    if (t.text) r.style.setProperty('--accent-text', t.text);
   } catch (e) {
     document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
