@@ -20,7 +20,7 @@ function flushHistory() {
 export function openSheet(html, { full = false, cls = '', onClose } = {}) {
   const el = document.createElement('div');
   el.className = `overlay ${full ? 'full' : ''} ${cls}`;
-  el.innerHTML = `<div class="backdrop"></div><div class="panel" role="dialog" aria-modal="true">${full ? '' : '<div class="grab"></div>'}<div class="panel-body">${html}</div></div>`;
+  el.innerHTML = `<div class="backdrop"></div><div class="panel" role="dialog" aria-modal="true">${full ? '' : '<div class="grab-zone" aria-hidden="true"><div class="grab"></div></div>'}<div class="panel-body">${html}</div></div>`;
   layers.appendChild(el);
   const rec = { el, body: el.querySelector('.panel-body'), onClose, pushed: false, closed: false };
   rec.close = () => closeRec(rec, false);
@@ -29,6 +29,30 @@ export function openSheet(html, { full = false, cls = '', onClose } = {}) {
   el.querySelector('.backdrop').addEventListener('click', rec.close);
   const panel = el.querySelector('.panel');
   panel.tabIndex = -1;
+  // drag the handle down to close the sheet
+  const zone = el.querySelector('.grab-zone');
+  if (zone) {
+    let y0 = null;
+    zone.addEventListener('pointerdown', (e) => {
+      y0 = e.clientY;
+      zone.setPointerCapture?.(e.pointerId);
+      panel.style.transition = 'none';
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (y0 === null) return;
+      panel.style.transform = `translateY(${Math.max(0, e.clientY - y0)}px)`;
+    });
+    const end = (e) => {
+      if (y0 === null) return;
+      const dy = e.clientY - y0;
+      y0 = null;
+      panel.style.transition = '';
+      panel.style.transform = '';
+      if (dy > 80) rec.close();
+    };
+    zone.addEventListener('pointerup', end);
+    zone.addEventListener('pointercancel', end);
+  }
   // a [data-close] button anywhere in the sheet closes it
   rec.body.addEventListener('click', (e) => e.target.closest('[data-close]') && rec.close());
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));

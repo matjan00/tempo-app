@@ -256,6 +256,7 @@ export function openTask(id) {
 
   const rec = openSheet(
     `<div class="ts">
+      <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button></div>
       <div class="ts-head"><button class="check big p${t0.prio} ${t0.done ? 'on' : ''}" id="ts-check" aria-label="${t0.done ? 'mark as not done' : 'mark as done'}">${t0.done ? icon('check', 18) : ''}</button>
         <textarea id="ts-title" rows="1" placeholder="task name" enterkeyhint="done" aria-label="task name">${esc(t0.title)}</textarea></div>
       <textarea id="ts-notes" rows="1" placeholder="add notes…" aria-label="notes">${esc(t0.notes)}</textarea>

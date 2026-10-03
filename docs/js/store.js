@@ -123,7 +123,8 @@ export function resetAll() {
   clearTimeout(saveTimer);
   frozen = true;
   try {
-    localStorage.removeItem(KEY);
+    // an empty app (no sample tasks): saving the blank state means the next start doesn't re-seed examples
+    localStorage.setItem(KEY, JSON.stringify(fresh()));
   } catch {}
 }
 

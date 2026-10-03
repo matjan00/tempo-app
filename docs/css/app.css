@@ -295,3 +295,9 @@ body.zen .focus .top .eyebrow, body.zen .focus .top [data-act=settings] { displa
 .install-banner .btn { padding: 9px 16px; font-size: 15px; }
 .install-steps { padding-left: 22px; margin: 4px 0 14px; line-height: 1.6; }
 .install-steps li { margin-bottom: 8px; }
+
+/* sheets: bigger drag handle + sticky back bar on the task sheet */
+.grab-zone { padding: 12px 0 8px; touch-action: none; cursor: grab; flex: none; }
+.grab-zone .grab { margin: 0 auto; }
+.ts-bar { position: sticky; top: -8px; z-index: 2; margin: -8px -20px 4px; padding: 8px 20px; background: var(--surface); }
+.ts-bar .btn { padding: 9px 16px 9px 10px; min-height: 44px; }
