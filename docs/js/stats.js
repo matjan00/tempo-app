@@ -1,4 +1,4 @@
-// Stats tab: summary cards, focus chart, heatmap, per-project bars.
+// Stats tab: summary cards, focus chart, heatmap, work-vs-personal bars.
 import * as store from './store.js';
 import { icon } from './icons.js';
 import { esc, ymd, addDays, parseYmd, fmtMin, MONTHS } from './util.js';
@@ -15,14 +15,14 @@ const mondayOf = (s) => {
 function collect() {
   const st = store.get();
   const byDay = {};
-  const byProject = {};
+  const byArea = {};
   for (const s of st.sessions) {
     const k = ymd(new Date(s.end));
     byDay[k] = (byDay[k] || 0) + (s.min || 0);
-    const p = s.project || '';
-    byProject[p] = (byProject[p] || 0) + (s.min || 0);
+    const a = s.area || '';
+    byArea[a] = (byArea[a] || 0) + (s.min || 0);
   }
-  return { st, byDay, byProject };
+  return { st, byDay, byArea };
 }
 
 function streak(byDay, today) {
@@ -99,26 +99,25 @@ function heatmap(byDay, today) {
   return `<div class="stat-heat" role="img" aria-label="focus minutes per day, last 15 weeks"><div class="stat-months">${months}</div><div class="stat-cols">${cols}</div></div>`;
 }
 
-function projects(byProject, st) {
-  const rows = Object.entries(byProject)
+function areas(byArea) {
+  const names = { work: 'work', personal: 'personal', '': 'no list' };
+  const colors = { work: 'var(--text)', personal: 'var(--accent)', '': 'var(--muted)' };
+  const rows = Object.entries(byArea)
     .filter(([, v]) => v > 0)
-    .map(([id, v]) => {
-      const p = st.projects.find((x) => x.id === id);
-      return { name: p ? p.name : 'No project', color: p ? p.color : null, v };
-    })
+    .map(([k, v]) => ({ name: names[k] || k, color: colors[k] || 'var(--muted)', v }))
     .sort((a, b) => b.v - a.v);
-  if (!rows.length) return '<p class="stat-note">Focus on a task in a project to see where your time goes.</p>';
+  if (!rows.length) return '<p class="stat-note">focus on a task to see how your time splits between work and personal.</p>';
   const max = rows[0].v;
   return rows
     .map(
-      (r) => `<div class="stat-prow"><div class="stat-pname"><span class="stat-dot" style="background:${esc(r.color || 'var(--muted)')}"></span>${esc(r.name)}<b>${fmtMin(r.v)}</b></div>
-      <div class="stat-ptrack"><div class="stat-pfill" style="width:${Math.max(3, (r.v / max) * 100).toFixed(1)}%;background:${esc(r.color || 'var(--muted)')}"></div></div></div>`
+      (r) => `<div class="stat-prow"><div class="stat-pname"><span class="stat-dot" style="background:${r.color}"></span>${esc(r.name)}<b>${fmtMin(r.v)}</b></div>
+      <div class="stat-ptrack"><div class="stat-pfill" style="width:${Math.max(3, (r.v / max) * 100).toFixed(1)}%;background:${r.color}"></div></div></div>`
     )
     .join('');
 }
 
 export function render(root) {
-  const { st, byDay, byProject } = collect();
+  const { st, byDay, byArea } = collect();
   const today = ymd();
   const wk = mondayOf(today);
   let weekMin = 0;
@@ -154,7 +153,7 @@ export function render(root) {
         ${barChart(days, byDay, today)}
       </section>
       <section class="stat-box"><div class="stat-boxhead"><h2>Last 15 weeks</h2></div>${heatmap(byDay, today)}</section>
-      <section class="stat-box"><div class="stat-boxhead"><h2>Focus by project</h2></div>${projects(byProject, st)}</section>
+      <section class="stat-box"><div class="stat-boxhead"><h2>Focus: work vs personal</h2></div>${areas(byArea)}</section>
     </div>`;
 
   root.onclick = (e) => {

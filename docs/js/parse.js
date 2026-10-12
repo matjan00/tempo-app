@@ -1,6 +1,6 @@
 // Quick-add: "call mom tomorrow !1 #family @work every week *2" → structured task fields.
 // `ignore` is a Set of token kinds the user tapped away in the preview chips ('due', 'prio', 'est',
-// 'repeat', 'project', 'tag:<name>'); those words then stay in the title as plain text.
+// 'repeat', 'area', 'tag:<name>'); those words then stay in the title as plain text.
 import { todayStr, addDays, parseYmd, ymd } from './util.js';
 
 const DOW = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 };
@@ -14,9 +14,9 @@ function nextWeekday(dow, strictlyAfterToday = true) {
   return addDays(t, add);
 }
 
-const empty = () => ({ title: '', due: null, prio: 0, tags: [], project: null, repeat: null, est: 0 });
+const empty = () => ({ title: '', due: null, prio: 0, tags: [], area: null, repeat: null, est: 0 });
 
-export function parseQuick(input, projects = [], ignore = new Set()) {
+export function parseQuick(input, ignore = new Set()) {
   const original = String(input || '').trim();
   const r = empty();
   if (!original) return r;
@@ -55,22 +55,16 @@ export function parseQuick(input, projects = [], ignore = new Set()) {
       if (r.est) return false;
       r.est = Math.min(20, Number(n));
     });
+  if (on('area'))
+    take(/\s[@#](work|personal)(?=\s)/i, (m, w) => {
+      if (r.area) return false;
+      r.area = w.toLowerCase();
+    });
   take(/\s#([\p{L}\d_-]+)(?=\s)/gu, (m, tag) => {
     const t = tag.toLowerCase();
     if (!on(`tag:${t}`)) return false;
     if (!r.tags.includes(t)) r.tags.push(t);
   });
-  if (on('project'))
-    take(/\s@([\p{L}\d_-]+)(?=\s)/gu, (m, name) => {
-      if (r.project) return false;
-      const n = name.toLowerCase();
-      const p =
-        projects.find((p) => p.name.toLowerCase().replace(/\s+/g, '-') === n) ||
-        projects.find((p) => p.name.toLowerCase().startsWith(n));
-      if (!p) return false;
-      r.project = p.id;
-    });
-
   // dates (first match wins)
   if (on('due') && !r.due) {
     const dateRules = [

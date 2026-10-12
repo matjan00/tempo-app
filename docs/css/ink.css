@@ -434,3 +434,13 @@ body.zen .focus-top .modes, body.zen .focus .top [data-act=settings] { display: 
   .focus.running .colon { animation: none; }
   .focus.running .dial svg, .focus.running .dial-in { transition: none; }
 }
+/* work / personal (replaces projects + inbox) */
+.dot { width: 9px; height: 9px; border-radius: 0; flex: none; }
+.dot.work { background: var(--text); }
+.dot.personal { background: transparent; border: 2px solid var(--text); }
+.m.area { text-transform: lowercase; }
+.qa-area { display: inline-flex; margin: 0 0 6px 2px; border: 2px solid var(--text); background: var(--surface); box-shadow: 2px 2px 0 var(--text); }
+.qa-area button { padding: 6px 14px; min-height: 36px; font-size: 13px; font-weight: 700; color: var(--text); background: transparent; }
+.qa-area button.on { background: var(--text); color: var(--bg); }
+.qa-area button:active { transform: translate(1px, 1px); }
+#screen > .chips.scroll { margin-left: 0; margin-right: 0; padding: 0 2px 4px; max-width: none; }

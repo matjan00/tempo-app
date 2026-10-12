@@ -226,7 +226,7 @@ function advance(completed, endedAt) {
       if (completed) {
         const task = s.tasks.find((x) => x.id === t.taskId);
         const min = t.len || s.settings.focus;
-        s.sessions.push({ id: uid(), end: endedAt, min, task: t.taskId || null, project: task?.project || null });
+        s.sessions.push({ id: uid(), end: endedAt, min, task: t.taskId || null, area: task?.area || null });
         if (task) {
           task.pomos += 1;
           task.focusMin += min;

@@ -53,8 +53,8 @@ export function render(root) {
   const section = (label, list, cls = '') =>
     list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t)).join('')}</section>` : '';
 
-  // "unplanned": no date and no project (inbox only means "no project")
-  const unplanned = open.filter((t) => !t.due && !t.project).slice(0, 3);
+  // "unplanned": open tasks without a date
+  const unplanned = open.filter((t) => !t.due).slice(0, 3);
   const empty = !late.length && !todays.length;
   const next = nextUp([...late, ...todays]);
 

@@ -1,18 +1,17 @@
 import * as store from './store.js';
-import { taskRow, handleTaskClick, composer, bindComposer, openProject, projectOf, openTask, toggleDone, prioMark } from './components.js';
+import { taskRow, handleTaskClick, composer, bindComposer, openTask, areaMark, toggleDone, prioMark } from './components.js';
 import { icon } from './icons.js';
 import { esc, todayStr, diffDays, fmtDate } from './util.js';
 
 // UI state that should survive re-renders
 let view = 'list'; // list | board
-let filter = 'all'; // all | inbox | <projectId>
+let filter = 'all'; // all | personal | work
 let search = '';
 let searching = false;
 let showDone = false;
 
 const matches = (t) => {
-  if (filter === 'inbox' && t.project) return false;
-  if (filter !== 'all' && filter !== 'inbox' && t.project !== filter) return false;
+  if (filter !== 'all' && t.area !== filter) return false;
   if (!search) return true;
   const q = search.toLowerCase();
   return t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q) || t.tags.some((x) => x.includes(q.replace(/^#/, '')));
@@ -49,10 +48,9 @@ function board(all) {
       ([k, list]) => `<section class="col" data-col="${k}" aria-label="${COLS[k]}"><h2>${COLS[k]}<span>${list.length}</span></h2>
       ${list
         .map((t) => {
-          const p = projectOf(t.project);
           const cls = t.due && !t.done ? (t.due < today ? 'late' : t.due === today ? 'today' : '') : '';
           return `<div class="card-k ${t.done ? 'done' : ''}" data-id="${t.id}"><button type="button" class="ck-t" data-act="open">${esc(t.title) || '<span class="muted">untitled</span>'}</button>
-          <div class="ck-m">${prioMark(t.prio)}${t.due ? `<span class="m ${cls}">${fmtDate(t.due)}</span>` : ''}${p ? `<span class="m"><i class="dot" style="background:${p.color}"></i>${esc(p.name)}</span>` : ''}</div>
+          <div class="ck-m">${prioMark(t.prio)}${t.due ? `<span class="m ${cls}">${fmtDate(t.due)}</span>` : ''}${filter === 'all' ? areaMark(t.area) : ''}</div>
           <div class="ck-a">${k !== 'todo' ? mv(k === 'doing' ? 'todo' : 'doing', true) : '<span></span>'}${k !== 'done' ? mv(k === 'todo' ? 'doing' : 'done', false) : ''}</div></div>`;
         })
         .join('') || '<div class="col-empty">nothing here</div>'}</section>`
@@ -67,24 +65,20 @@ function bodyHtml() {
   const scoped = st.tasks.filter(matches);
   const open = scoped.filter((t) => !t.done);
   const done = scoped.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
-  const curProject = projectOf(filter);
   if (view === 'board') return { html: board(scoped), open: open.length };
   const g = groups([...open]);
   let body = Object.entries(g)
     .filter(([, l]) => l.length)
-    .map(([label, l]) => `<section class="sec ${label === 'Overdue' ? 'late' : ''}"><h2>${label}<span>${l.length}</span></h2>${l.map((t) => taskRow(t, { showProject: !curProject })).join('')}</section>`)
+    .map(([label, l]) => `<section class="sec ${label === 'Overdue' ? 'late' : ''}"><h2>${label}<span>${l.length}</span></h2>${l.map((t) => taskRow(t, { showArea: filter === 'all' })).join('')}</section>`)
     .join('');
   if (!open.length)
-    body = `<div class="empty">${icon('tasks', 34)}<p>${search ? 'no tasks match your search.' : done.length ? 'everything here is done.' : curProject ? `no tasks in ${esc(curProject.name)} yet.` : filter === 'inbox' ? 'nothing in your inbox (tasks without a project).' : 'no tasks yet.'}</p><small>${search ? 'try another word or a #tag.' : 'type one in the bar below.'}</small></div>`;
+    body = `<div class="empty">${icon('tasks', 34)}<p>${search ? 'no tasks match your search.' : done.length ? 'everything here is done.' : filter !== 'all' ? `no ${filter} tasks yet.` : 'no tasks yet.'}</p><small>${search ? 'try another word or a #tag.' : 'type one in the bar below.'}</small></div>`;
   if (done.length)
-    body += `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Completed<span>${done.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? done.slice(0, 50).map((t) => taskRow(t, { showProject: !curProject })).join('') : ''}</section>`;
+    body += `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Completed<span>${done.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? done.slice(0, 50).map((t) => taskRow(t, { showArea: filter === 'all' })).join('') : ''}</section>`;
   return { html: body, open: open.length };
 }
 
 export function render(root) {
-  const st = store.get();
-  if (filter !== 'all' && filter !== 'inbox' && !projectOf(filter)) filter = 'all'; // project was deleted
-  const curProject = projectOf(filter);
   const body = bodyHtml();
 
   const chip = (k, label, extra = '') => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}" aria-pressed="${filter === k}">${extra}${label}</button>`;
@@ -95,12 +89,11 @@ export function render(root) {
       <div class="top-btns"><button class="icon-btn ${searching ? 'on' : ''}" data-act="search" aria-label="search tasks" aria-pressed="${searching}">${icon('search', 21)}</button>
       <div class="seg view-seg" role="group" aria-label="show tasks as">${vbtn('list')}${vbtn('board')}</div></div></header>
     ${searching ? `<input class="search" data-keep="search" type="search" placeholder="search tasks, notes, #tags" aria-label="search tasks" value="${esc(search)}">` : ''}
-    <div class="chips scroll" id="filters">${chip('all', 'All')}${chip('inbox', 'Inbox')}${st.projects.map((p) => chip(p.id, esc(p.name), `<i class="dot" style="background:${p.color}"></i>`)).join('')}<button class="chip add" data-act="newproj" aria-label="new project">${icon('plus', 15)}</button></div>
-    ${curProject ? `<button class="proj-edit" data-act="editproj">${icon('more', 18)} edit project</button>` : ''}
+    <div class="chips scroll" id="filters">${chip('all', 'all')}${chip('personal', 'personal')}${chip('work', 'work')}</div>
     <div class="tasks-body">${body.html}</div>
-    ${composer({ placeholder: curProject ? `add to ${curProject.name}…` : filter === 'inbox' ? 'add to inbox…' : 'add a task…' })}`;
+    ${composer({ placeholder: filter !== 'all' ? `add a ${filter} task…` : 'add a task…' })}`;
 
-  bindComposer(root, () => ({ project: curProject?.id || null }));
+  bindComposer(root, () => ({ area: filter !== 'all' ? filter : null }));
   const s = root.querySelector('.search');
   if (s) {
     let t = null;
@@ -146,7 +139,5 @@ export function render(root) {
     if (a === 'open') return openTask(e.target.closest('.card-k').dataset.id);
     if (a === 'search') return (searching = !searching), searching || (search = ''), render(root);
     if (a === 'toggleDone') return (showDone = !showDone), render(root);
-    if (a === 'newproj') return openProject(null, (id) => id && ((filter = id), render(root)));
-    if (a === 'editproj') return openProject(filter, (id) => ((filter = id || 'all'), render(root)));
   };
 }

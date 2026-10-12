@@ -22,7 +22,6 @@ export const DEFAULT_SETTINGS = {
 const fresh = () => ({
   v: 1,
   tasks: [],
-  projects: [],
   pages: [],
   sessions: [],
   settings: { ...DEFAULT_SETTINGS },
@@ -49,7 +48,14 @@ function migrate(s) {
   if (!isObj(s)) s = {};
   const f = fresh();
   const out = { ...f, ...s, settings: { ...f.settings, ...(isObj(s.settings) ? s.settings : {}) }, timer: { ...f.timer, ...(isObj(s.timer) ? s.timer : {}) } };
-  for (const k of ['tasks', 'projects', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
+  // old saves had projects + an inbox: every task is now either "work" or "personal"
+  const oldProjects = arr(s.projects).filter(isObj);
+  const areaOfProject = (id) => {
+    const p = oldProjects.find((x) => x.id === id);
+    return p && /work|prac|job|office/i.test(String(p.name)) ? 'work' : 'personal';
+  };
+  delete out.projects;
+  for (const k of ['tasks', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
   out.tasks = out.tasks.map((t) => {
     const n = { ...newTask(), id: t.id || uid(), ...t };
     n.title = String(n.title ?? '');
@@ -61,6 +67,8 @@ function migrate(s) {
     n.pomos = Number(n.pomos) || 0;
     n.focusMin = Number(n.focusMin) || 0;
     if (n.status !== 'doing') n.status = 'todo';
+    n.area = t.area === 'work' || t.area === 'personal' ? t.area : areaOfProject(t.project); // t = what was saved (n already has the default)
+    delete n.project;
     return n;
   });
   out.pages = out.pages.map((p) => {
@@ -70,8 +78,14 @@ function migrate(s) {
     if (!n.blocks.length) n.blocks.push(newBlock());
     return n;
   });
-  out.projects = out.projects.map((p) => ({ name: '', color: '#8b8b93', ...p, id: p.id || uid() }));
-  out.sessions = out.sessions.filter((x) => Number.isFinite(x.end)).map((x) => ({ ...x, min: Number(x.min) || 0 }));
+  out.sessions = out.sessions
+    .filter((x) => Number.isFinite(x.end))
+    .map((x) => {
+      const o = { ...x, min: Number(x.min) || 0 };
+      o.area = x.area === 'work' || x.area === 'personal' ? x.area : x.project ? areaOfProject(x.project) : null;
+      delete o.project;
+      return o;
+    });
   const t = out.timer;
   if (!['focus', 'short', 'long'].includes(t.mode)) t.mode = 'focus';
   if (t.running && !Number.isFinite(t.endAt)) Object.assign(t, { running: false, endAt: null, remaining: null });
@@ -138,7 +152,7 @@ export const newTask = (p = {}) => ({
   created: Date.now(),
   due: null,
   prio: 0, // 0 none · 1 low · 2 medium · 3 high
-  project: null,
+  area: 'personal', // personal | work
   tags: [],
   sub: [],
   repeat: null, // daily | weekdays | weekly | monthly
@@ -250,36 +264,6 @@ export function restoreTask(snap) {
   });
 }
 
-// ---------- projects ----------
-export function addProject(name, color) {
-  const p = { id: uid(), name, color };
-  mutate((s) => s.projects.push(p));
-  return p;
-}
-export function updateProject(id, patch) {
-  mutate((s) => Object.assign(s.projects.find((p) => p.id === id) || {}, patch));
-}
-export function deleteProject(id) {
-  let snap = null;
-  mutate((s) => {
-    const i = s.projects.findIndex((p) => p.id === id);
-    if (i < 0) return;
-    snap = { project: s.projects[i], index: i, tasks: s.tasks.filter((t) => t.project === id).map((t) => t.id) };
-    s.projects.splice(i, 1);
-    s.tasks.forEach((t) => t.project === id && (t.project = null));
-  });
-  return snap;
-}
-export function restoreProject(snap) {
-  if (!snap) return;
-  mutate((s) => {
-    if (s.projects.some((p) => p.id === snap.project.id)) return;
-    s.projects.splice(Math.min(snap.index, s.projects.length), 0, snap.project);
-    const ids = new Set(snap.tasks);
-    s.tasks.forEach((t) => ids.has(t.id) && !t.project && (t.project = snap.project.id));
-  });
-}
-
 // ---------- pages ----------
 export const newBlock = (type = 'p', text = '') => ({ id: uid(), type, text, done: false });
 
@@ -309,16 +293,13 @@ export function restorePage(snap) {
 
 // ---------- seed data for a first launch ----------
 function seed(s) {
-  const personal = { id: uid(), name: 'Personal', color: '#3e7bfa' };
-  const work = { id: uid(), name: 'Work', color: '#ff5d47' };
-  s.projects.push(personal, work);
   const t = todayStr();
   s.tasks.push(
-    newTask({ title: 'Try a 25 min focus session', due: t, prio: 2, est: 1, project: personal.id }),
+    newTask({ title: 'Try a 25 min focus session', due: t, prio: 2, est: 1 }),
     newTask({ title: 'Tap me to open details, tap the square to finish', due: t, sub: [{ id: uid(), t: 'Add a due date', d: false }, { id: uid(), t: 'Add a subtask', d: false }] }),
     newTask({ title: 'Press and hold a task to reschedule or delete it', due: addDays(t, 1) }),
-    newTask({ title: 'Plan the week', due: addDays(t, 1), project: work.id, repeat: 'weekly' }),
-    newTask({ title: 'Anything without a date lives in your Inbox' })
+    newTask({ title: 'Plan the week', due: addDays(t, 1), area: 'work', repeat: 'weekly' }),
+    newTask({ title: 'Choose work or personal for every task (below the bar, or @work)', area: 'work' })
   );
   const b = newBlock;
   s.pages.push({

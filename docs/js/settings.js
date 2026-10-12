@@ -53,7 +53,7 @@ function html() {
       ${helpRow('tomorrow, fri, next week, in 3 days', 'sets the date')}
       ${helpRow('!1 · !2 · !3', '!1 high · !2 medium · !3 low priority')}
       ${helpRow('#gym', 'adds a tag')}
-      ${helpRow('@work', 'puts it in a project')}
+      ${helpRow('@work', 'marks it as work (default is personal)')}
       ${helpRow('*2', 'plans 2 focus sessions')}
       ${helpRow('every week, daily', 'makes it repeat')}
     </dl>
