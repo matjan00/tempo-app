@@ -144,6 +144,10 @@ export function taskActions(id) {
         ${opt('week', 'calendar', 'next week', t.due === nextMonday())}
         ${opt('none', 'x', 'no date', !t.due)}
       </div>
+      <div class="qa-grid">
+        ${opt('personal', 'leaf', 'personal', t.area === 'personal')}
+        ${opt('work', 'tasks', 'work', t.area === 'work')}
+      </div>
       <div class="qa-list">
         ${opt('done', 'check', t.done ? 'mark as not done' : 'mark as done')}
         ${t.done ? '' : opt('focus', 'play', 'start focus')}
@@ -164,6 +168,11 @@ export function taskActions(id) {
       if (before === due[k]) return;
       store.updateTask(id, { due: due[k] });
       toast(due[k] ? `moved to ${fmtDate(due[k]).toLowerCase()}` : 'date removed', { action: 'undo', onAction: () => store.updateTask(id, { due: before }) });
+    } else if (k === 'personal' || k === 'work') {
+      const before = store.getTask(id)?.area || 'personal';
+      if (before === k) return;
+      store.updateTask(id, { area: k });
+      toast(`moved to ${k}`, { action: 'undo', onAction: () => store.updateTask(id, { area: before }) });
     } else if (k === 'done') toggleDone(id);
     else if (k === 'focus') document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id }));
     else if (k === 'open') setTimeout(() => openTask(id), 60);
