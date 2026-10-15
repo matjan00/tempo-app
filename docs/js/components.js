@@ -86,8 +86,8 @@ export function handleTaskClick(e, { onFocus } = {}) {
 }
 
 // ---------- long-press quick actions ----------
-// Press and hold a task row or board card (or right-click it) to reschedule, focus or delete it without opening it.
-const HOLDABLE = '.task[data-id], .card-k[data-id]';
+// Press and hold a task row (or right-click it) to reschedule, focus or delete it without opening it.
+const HOLDABLE = '.task[data-id]';
 export function bindLongPress(root) {
   let timer = null;
   let start = null;
@@ -192,6 +192,7 @@ export function composer({ placeholder = 'add a task…', hint = true } = {}) {
     <div class="qa-area" role="group" aria-label="add to">${AREAS.map((a) => `<button type="button" data-area="${a}" aria-pressed="false">${a}</button>`).join('')}</div>
     <form class="qa-form" autocomplete="off">
       <input class="qa-input" data-keep="qa" type="text" enterkeyhint="done" placeholder="${esc(placeholder)}" aria-label="new task" maxlength="300">
+      <label class="qa-date" title="set a date">${icon('calendar', 20)}<input class="qa-date-in" type="date" aria-label="set a date for this task"></label>
       <button class="qa-send" type="submit" aria-label="add task">${icon('plus', 22)}</button>
     </form>
     ${hint ? `<div class="qa-hint">try: <b>gym tomorrow !1 #health *2</b></div>` : ''}
@@ -222,10 +223,13 @@ export function bindComposer(root, getDefaults = () => ({})) {
     paintArea();
     input.focus();
   });
+  const dateIn = form.querySelector('.qa-date-in');
+  let picked = ''; // date chosen with the calendar button; a date typed in the title wins over it
   const show = () => {
     if (!input.value.trim()) ignored = new Set();
     const r = parseQuick(input.value, ignored);
     const c = [];
+    if (picked && !r.due) c.push(`<button type="button" class="m chip-sm" data-pick="1" aria-label="remove the picked date">${icon('calendar', 13)}${fmtDate(picked)}${icon('x', 12, 'chip-x')}</button>`);
     const chip = (kind, html, label) => c.push(`<button type="button" class="m chip-sm" data-ig="${esc(kind)}" aria-label="keep ${esc(label)} as text">${html}${icon('x', 12, 'chip-x')}</button>`);
     if (r.due) chip('due', `${icon('calendar', 13)}${fmtDate(r.due)}`, 'date');
     if (r.prio) chip('prio', `<b class="prio-g" aria-hidden="true">${PRIO_GLYPH[r.prio]}</b>${PRIO_LABEL[r.prio]}`, 'priority');
@@ -240,7 +244,16 @@ export function bindComposer(root, getDefaults = () => ({})) {
   input.addEventListener('input', show);
   show();
   chips.addEventListener('mousedown', (e) => e.preventDefault()); // keep the keyboard open
+  dateIn.addEventListener('change', () => {
+    picked = dateIn.value;
+    show();
+  });
   chips.addEventListener('click', (e) => {
+    if (e.target.closest('[data-pick]')) {
+      picked = dateIn.value = '';
+      show();
+      return input.focus();
+    }
     const b = e.target.closest('[data-ig]');
     if (!b) return;
     ignored.add(b.dataset.ig);
@@ -256,10 +269,12 @@ export function bindComposer(root, getDefaults = () => ({})) {
     const d = getDefaults();
     input.value = '';
     ignored = new Set();
+    picked = dateIn.value = '';
+    show();
     haptic(8);
     const t = store.addTask({
       title: r.title,
-      due: r.due || d.due || null,
+      due: r.due || picked || d.due || null,
       prio: r.prio,
       tags: r.tags,
       area: r.area || area,

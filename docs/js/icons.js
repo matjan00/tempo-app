@@ -25,7 +25,6 @@ const P = {
   pin: '<path d="M9 4h6l-1 5 3 3v1.5H7V12l3-3zM12 13.5V20"/>',
   repeat: '<path d="M17 3.5 20 6.5l-3 3M20 6.5H8A4.5 4.5 0 0 0 3.5 11v.5M7 20.5l-3-3 3-3M4 17.5h12a4.5 4.5 0 0 0 4.5-4.5v-.5"/>',
   list: '<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="2.2"/>',
-  board: '<rect x="3.5" y="4" width="5" height="16" rx="1.6"/><rect x="10" y="4" width="5" height="9.5" rx="1.6"/><rect x="16.5" y="4" width="4" height="12.5" rx="1.6"/>',
   download: '<path d="M12 4v11M7.5 10.8 12 15.3l4.5-4.5M5 20h14"/>',
   upload: '<path d="M12 15.5V4.5M7.5 9 12 4.5 16.5 9M5 20h14"/>',
   volume: '<path d="M11 5.5 6.5 9H3.5v6h3l4.5 3.5zM15.2 8.8a4.6 4.6 0 0 1 0 6.4M18.2 6a8.7 8.7 0 0 1 0 12"/>',

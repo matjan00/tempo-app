@@ -134,7 +134,7 @@ export function render(root) {
   const hasData = st.sessions.length > 0;
   const nToday = st.sessions.filter((x) => ymd(new Date(x.end)) === today).length;
   const cards = [
-    ['Focus today', fmtMin(byDay[today] || 0), goal ? `${nToday}/${goal} sessions${nToday >= goal ? ' · goal reached' : ''}` : `${nToday} sessions`],
+    ['Focus sessions', String(st.sessions.length), `total · ${goal ? `${nToday}/${goal} today${nToday >= goal ? ' · goal reached' : ''}` : `${nToday} today`}`],
     ['This week', fmtMin(weekMin), 'Mon to Sun'],
     ['Day streak', String(sk), sk ? (byDay[today] ? (sk === 1 ? 'day' : 'days in a row') : 'focus today to keep it') : 'focus to start one'],
     ['Tasks done', String(tasksWeek), 'this week'],

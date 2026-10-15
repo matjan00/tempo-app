@@ -1,10 +1,9 @@
 import * as store from './store.js';
-import { taskRow, handleTaskClick, composer, bindComposer, openTask, areaMark, toggleDone, prioMark } from './components.js';
+import { taskRow, handleTaskClick, composer, bindComposer } from './components.js';
 import { icon } from './icons.js';
-import { esc, todayStr, diffDays, fmtDate } from './util.js';
+import { esc, todayStr, diffDays } from './util.js';
 
 // UI state that should survive re-renders
-let view = 'list'; // list | board
 let filter = 'all'; // all | personal | work
 let search = '';
 let searching = false;
@@ -32,32 +31,6 @@ function groups(open) {
   return g;
 }
 
-const COLS = { todo: 'to do', doing: 'doing', done: 'done' };
-
-function board(all) {
-  const today = todayStr();
-  const cols = [
-    ['todo', all.filter((t) => !t.done && t.status !== 'doing').sort(byOrder)],
-    ['doing', all.filter((t) => !t.done && t.status === 'doing').sort(byOrder)],
-    ['done', all.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 30)],
-  ];
-  const mv = (to, back) =>
-    `<button type="button" class="ck-mv ${back ? 'back' : ''}" data-mv="${to}" aria-label="move to ${COLS[to]}">${back ? `${icon('chevL', 15)}${COLS[to]}` : `${COLS[to]}${icon('chevR', 15)}`}</button>`;
-  return `<div class="board">${cols
-    .map(
-      ([k, list]) => `<section class="col" data-col="${k}" aria-label="${COLS[k]}"><h2>${COLS[k]}<span>${list.length}</span></h2>
-      ${list
-        .map((t) => {
-          const cls = t.due && !t.done ? (t.due < today ? 'late' : t.due === today ? 'today' : '') : '';
-          return `<div class="card-k ${t.done ? 'done' : ''}" data-id="${t.id}"><button type="button" class="ck-t" data-act="open">${esc(t.title) || '<span class="muted">untitled</span>'}</button>
-          <div class="ck-m">${prioMark(t.prio)}${t.due ? `<span class="m ${cls}">${fmtDate(t.due)}</span>` : ''}${filter === 'all' ? areaMark(t.area) : ''}</div>
-          <div class="ck-a">${k !== 'todo' ? mv(k === 'doing' ? 'todo' : 'doing', true) : '<span></span>'}${k !== 'done' ? mv(k === 'todo' ? 'doing' : 'done', false) : ''}</div></div>`;
-        })
-        .join('') || '<div class="col-empty">nothing here</div>'}</section>`
-    )
-    .join('')}</div>`;
-}
-
 // Everything below the filter chips. Re-drawn on its own while searching, so the search field
 // (and the keyboard's word suggestions) is never replaced mid-word.
 function bodyHtml() {
@@ -65,7 +38,6 @@ function bodyHtml() {
   const scoped = st.tasks.filter(matches);
   const open = scoped.filter((t) => !t.done);
   const done = scoped.filter((t) => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
-  if (view === 'board') return { html: board(scoped), open: open.length };
   const g = groups([...open]);
   let body = Object.entries(g)
     .filter(([, l]) => l.length)
@@ -82,12 +54,10 @@ export function render(root) {
   const body = bodyHtml();
 
   const chip = (k, label, extra = '') => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}" aria-pressed="${filter === k}">${extra}${label}</button>`;
-  const vbtn = (k) => `<button type="button" data-view="${k}" class="${view === k ? 'on' : ''}" aria-pressed="${view === k}">${k}</button>`;
 
   root.innerHTML = `
     <header class="top"><div><div class="eyebrow" id="tasks-count">${body.open} open</div><h1>Tasks</h1></div>
-      <div class="top-btns"><button class="icon-btn ${searching ? 'on' : ''}" data-act="search" aria-label="search tasks" aria-pressed="${searching}">${icon('search', 21)}</button>
-      <div class="seg view-seg" role="group" aria-label="show tasks as">${vbtn('list')}${vbtn('board')}</div></div></header>
+      <div class="top-btns"><button class="icon-btn ${searching ? 'on' : ''}" data-act="search" aria-label="search tasks" aria-pressed="${searching}">${icon('search', 21)}</button></div></header>
     ${searching ? `<input class="search" data-keep="search" type="search" placeholder="search tasks, notes, #tags" aria-label="search tasks" value="${esc(search)}">` : ''}
     <div class="chips scroll" id="filters">${chip('all', 'all')}${chip('personal', 'personal')}${chip('work', 'work')}</div>
     <div class="tasks-body">${body.html}</div>
@@ -116,27 +86,10 @@ export function render(root) {
   }
 
   root.onclick = (e) => {
-    // the end of a long-press on a board card (the quick-actions sheet is already open)
-    const held = e.target.closest('.card-k[data-held]');
-    if (held) return delete held.dataset.held;
     if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
-    const mv = e.target.closest('[data-mv]');
-    if (mv) {
-      const id = mv.closest('.card-k').dataset.id;
-      const to = mv.dataset.mv;
-      const t = store.getTask(id);
-      if (!t) return;
-      // go through setDone so repeating tasks schedule their next copy (and undo works)
-      if (to === 'done') return toggleDone(id);
-      if (t.done) store.setDone(id, false);
-      return store.updateTask(id, { status: to });
-    }
     const f = e.target.closest('[data-f]');
     if (f) return (filter = f.dataset.f), render(root);
-    const v = e.target.closest('[data-view]');
-    if (v) return v.dataset.view !== view && ((view = v.dataset.view), render(root));
     const a = e.target.closest('[data-act]')?.dataset.act;
-    if (a === 'open') return openTask(e.target.closest('.card-k').dataset.id);
     if (a === 'search') return (searching = !searching), searching || (search = ''), render(root);
     if (a === 'toggleDone') return (showDone = !showDone), render(root);
   };

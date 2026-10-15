@@ -159,7 +159,7 @@ export const newTask = (p = {}) => ({
   est: 0, // estimated pomodoros
   pomos: 0,
   focusMin: 0,
-  status: 'todo', // todo | doing (board column); done is a separate flag
+  status: 'todo', // todo | doing; done is a separate flag
   ...p,
 });
 

@@ -20,7 +20,7 @@ function progress(done, total, mins) {
   const segs = total <= 12
     ? `<span class="prog-bar segs" aria-hidden="true">${Array.from({ length: total }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</span>`
     : `<span class="prog-bar" aria-hidden="true"><i class="on" style="width:${((done / total) * 100).toFixed(1)}%"></i></span>`;
-  return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b>${mins ? `<span class="muted"> · ${fmtMin(mins)} focused</span>` : ''}</p>${segs}</div>`;
+  return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b>${mins ? `<span class="muted"> · ${fmtMin(mins)} focused in total</span>` : ''}</p>${segs}</div>`;
 }
 
 // The task to do next: overdue or due today, highest priority first, then the earliest date.
@@ -48,7 +48,7 @@ export function render(root) {
   const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
   const total = late.length + todays.length + doneToday.length;
-  const mins = st.sessions.filter((s) => new Date(s.end).toDateString() === new Date().toDateString()).reduce((a, s) => a + s.min, 0);
+  const mins = st.sessions.reduce((a, s) => a + (Number(s.min) || 0), 0); // running total across all days
   const d = new Date();
   const section = (label, list, cls = '') =>
     list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t)).join('')}</section>` : '';
