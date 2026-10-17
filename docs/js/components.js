@@ -267,6 +267,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
     if (!text) return input.focus();
     const r = parseQuick(text, ignored);
     const d = getDefaults();
+    const pickedDue = picked;
     input.value = '';
     ignored = new Set();
     picked = dateIn.value = '';
@@ -274,7 +275,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
     haptic(8);
     const t = store.addTask({
       title: r.title,
-      due: r.due || picked || d.due || null,
+      due: r.due || pickedDue || d.due || null,
       prio: r.prio,
       tags: r.tags,
       area: r.area || area,
