@@ -5,7 +5,14 @@ export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-export const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const uidFallback = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+export const uid = () => {
+  try {
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  } catch {
+    return uidFallback();
+  }
+};
 export const pad = (n) => String(n).padStart(2, '0');
 
 // Dates are stored as local "YYYY-MM-DD" strings so "today" never shifts with time zones.

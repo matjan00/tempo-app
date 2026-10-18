@@ -25,7 +25,7 @@ function progress(done, total, mins) {
 
 // The task to do next: overdue or due today, highest priority first, then the earliest date.
 function nextUp(list) {
-  return [...list].sort((a, b) => b.prio - a.prio || a.due.localeCompare(b.due) || a.created - b.created)[0] || null;
+  return [...list].sort((a, b) => b.prio - a.prio || (a.due < b.due ? -1 : a.due > b.due ? 1 : 0) || a.created - b.created)[0] || null;
 }
 
 function nextCard(t) {
@@ -44,7 +44,7 @@ export function render(root) {
   const st = store.get();
   const today = todayStr();
   const open = st.tasks.filter((t) => !t.done);
-  const late = open.filter((t) => t.due && t.due < today).sort((a, b) => a.due.localeCompare(b.due));
+  const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
   const total = late.length + todays.length + doneToday.length;

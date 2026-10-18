@@ -23,7 +23,7 @@ let ctx, noiseSrc, noiseGain, noiseKind;
 function audio() {
   try {
     ctx ||= new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume()?.catch?.(() => {}); // can reject before the first tap
   } catch {}
   return ctx;
 }
@@ -48,12 +48,15 @@ export function chime() {
   });
 }
 
+const noiseCache = {}; // one 4 s buffer per kind, reused every time the sound is switched on
 function noiseBuffer(c, kind) {
+  if (noiseCache[kind]) return noiseCache[kind];
   const len = c.sampleRate * 4;
+  const f = 2000; // loop seam: extra samples that are blended into the start
   const buf = c.createBuffer(1, len, c.sampleRate);
-  const d = buf.getChannelData(0);
+  const d = new Float32Array(len + f);
   let last = 0, b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < len + f; i++) {
     const w = Math.random() * 2 - 1;
     if (kind === 'brown') {
       last = (last + 0.02 * w) / 1.02;
@@ -65,10 +68,14 @@ function noiseBuffer(c, kind) {
       b6 = w * 0.115926;
     } else d[i] = w * 0.5;
   }
-  // loop seam: fade the ends together
-  const f = 2000;
-  for (let i = 0; i < f; i++) d[len - 1 - i] = d[len - 1 - i] * (i / f) + d[f - 1 - i] * (1 - i / f) * 0;
-  return buf;
+  // loop seam: the start fades from the samples that would have come after the end into its own,
+  // so the jump from the last sample back to the first is smooth (equal-power blend for uncorrelated noise)
+  for (let i = 0; i < f; i++) {
+    const w = i / f;
+    d[i] = d[i] * Math.sqrt(w) + d[len + i] * Math.sqrt(1 - w);
+  }
+  buf.getChannelData(0).set(d.subarray(0, len));
+  return (noiseCache[kind] = buf);
 }
 
 function stopNoise() {
@@ -102,19 +109,33 @@ function syncNoise() {
 
 // ---------- keep the screen awake while running ----------
 let lock = null;
-async function syncWake() {
-  try {
-    const want = view().running && store.get().settings.keepAwake && document.visibilityState === 'visible';
-    if (want && !lock && navigator.wakeLock) {
-      lock = await navigator.wakeLock.request('screen');
-      lock.addEventListener('release', () => (lock = null));
-    } else if (!want && lock) {
-      await lock.release();
-      lock = null;
-    }
-  } catch {
-    lock = null;
+let wakeBusy = null; // one request/release at a time, so quick tab switches cannot leak a second lock
+let wakeAgain = false;
+function syncWake() {
+  if (wakeBusy) {
+    wakeAgain = true; // re-check once the running one is finished
+    return wakeBusy;
   }
+  wakeBusy = (async () => {
+    do {
+      wakeAgain = false;
+      try {
+        const want = view().running && store.get().settings.keepAwake && document.visibilityState === 'visible';
+        if (want && !lock && navigator.wakeLock) {
+          const l = await navigator.wakeLock.request('screen');
+          lock = l;
+          l.addEventListener('release', () => {
+            if (lock === l) lock = null; // an older lock being released must not forget the current one
+          });
+        } else if (!want && lock) {
+          const l = lock;
+          lock = null;
+          await l.release();
+        }
+      } catch {}
+    } while (wakeAgain);
+  })().finally(() => (wakeBusy = null));
+  return wakeBusy;
 }
 document.addEventListener('visibilitychange', syncWake);
 
@@ -199,10 +220,12 @@ export const snapshot = () => JSON.parse(JSON.stringify(store.get().timer));
 export function restore(snap) {
   if (!snap) return;
   store.mutate((s) => {
-    const t = { ...snap };
+    // only the fields reset / skip / mode change touch: a task picked or a setting changed since stays as it is
+    const t = {};
+    for (const k of ['mode', 'running', 'endAt', 'remaining', 'startedAt', 'len', 'cycle']) t[k] = snap[k] ?? null;
     // a running session that would have ended while the undo toast was up just resumes paused at 0:01
     if (t.running && t.endAt <= Date.now() + 1000) Object.assign(t, { running: false, endAt: null, remaining: 1000 });
-    s.timer = { ...s.timer, ...t };
+    Object.assign(s.timer, t);
   });
   sync();
 }
@@ -226,14 +249,18 @@ function advance(completed, endedAt) {
       if (completed) {
         const task = s.tasks.find((x) => x.id === t.taskId);
         const min = t.len || s.settings.focus;
-        s.sessions.push({ id: uid(), end: endedAt, min, task: t.taskId || null, area: task?.area || null });
-        if (task) {
-          task.pomos += 1;
-          task.focusMin += min;
-        }
-        if (t.cycle >= s.settings.every) t.cycle = 0; // previous round's long break was skipped by hand
-        t.cycle += 1;
         logged = min;
+        // another open window may already have logged this very session: never count it twice
+        const dupe = s.sessions.some((x) => x.end === endedAt && x.task === (t.taskId || null));
+        if (!dupe) {
+          s.sessions.push({ id: uid(), end: endedAt, min, task: t.taskId || null, area: task?.area || null });
+          if (task) {
+            task.pomos += 1;
+            task.focusMin += min;
+          }
+          if (t.cycle >= s.settings.every) t.cycle = 0; // previous round's long break was skipped by hand
+          t.cycle += 1;
+        }
       }
       next = t.cycle >= s.settings.every ? 'long' : 'short';
     } else {
@@ -249,16 +276,17 @@ function advance(completed, endedAt) {
 
 export const skip = () => advance(false, Date.now());
 
-function alertUser(wasFocus, next, logged) {
+function alertUser(wasFocus, next, logged, quiet = false) {
   const s = store.get().settings;
   const title = wasFocus ? 'focus session done' : 'break over';
   const body = wasFocus
     ? `${fmtMin(logged)} logged. time for a ${next === 'long' ? 'long' : 'short'} break.`
     : 'ready for the next focus session?';
-  if (s.sound) chime();
-  if (s.vibrate) navigator.vibrate?.([220, 120, 220, 120, 420]);
+  // a session that ended long ago (phone was asleep, tab frozen) only gets a quiet note, not a late alarm
+  if (!quiet && s.sound) chime();
+  if (!quiet && s.vibrate) navigator.vibrate?.([220, 120, 220, 120, 420]);
   toast(`${title} — ${body}`, { ms: 6000 });
-  if (s.notify && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+  if (!quiet && s.notify && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
     const opts = { body, icon: 'icons/icon-192.png', tag: 'tempo-timer', renotify: true };
     navigator.serviceWorker?.ready.then((r) => r.showNotification(title, opts)).catch(() => {});
   }
@@ -269,8 +297,9 @@ export function tick() {
   const t = store.get().timer;
   if (t.running && Date.now() >= t.endAt) {
     const wasFocus = t.mode === 'focus';
+    const stale = Date.now() - t.endAt > 60000;
     const { next, logged } = advance(true, t.endAt);
-    alertUser(wasFocus, next, logged);
+    alertUser(wasFocus, next, logged, stale);
   }
 }
 

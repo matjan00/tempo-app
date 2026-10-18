@@ -21,9 +21,11 @@ export function parseQuick(input, ignore = new Set()) {
   const r = empty();
   if (!original) return r;
   let s = ` ${original} `;
+  let took = false; // at least one word was picked up (so leftover punctuation may need tidying)
   const take = (re, fn) => {
     s = s.replace(re, (...m) => {
       const out = fn(...m);
+      if (out !== false) took = true;
       return out === false ? m[0] : ' ';
     });
   };
@@ -31,36 +33,36 @@ export function parseQuick(input, ignore = new Set()) {
 
   if (on('repeat')) {
     // "every monday" = weekly, starting on the next Monday (today if it is Monday)
-    take(new RegExp(`\\s(?:every|each)\\s+(${DOW_RE})(?=\\s)`, 'i'), (m, d) => {
+    take(new RegExp(`\\s(?:every|each)\\s+(${DOW_RE})(?=[\\s.,;!?]|$)`, 'i'), (m, d) => {
       if (r.repeat) return false;
       r.repeat = 'weekly';
       if (on('due') && !r.due) r.due = nextWeekday(DOW[d.toLowerCase()], false);
     });
-    take(/\s(?:every|each)\s+(day|weekday|weekdays|week|month)(?=\s)/i, (m, w) => {
+    take(/\s(?:every|each)\s+(day|weekday|weekdays|week|month)(?=[\s.,;!?]|$)/i, (m, w) => {
       if (r.repeat) return false;
       r.repeat = { day: 'daily', weekday: 'weekdays', weekdays: 'weekdays', week: 'weekly', month: 'monthly' }[w.toLowerCase()];
     });
-    take(/\s(daily|weekly|monthly)(?=\s)/i, (m, w) => {
+    take(/\s(daily|weekly|monthly)(?=[\s.,;!?]|$)/i, (m, w) => {
       if (r.repeat) return false;
       r.repeat = w.toLowerCase();
     });
   }
   if (on('prio'))
-    take(/\s!([1-3])(?=\s)/, (m, n) => {
+    take(/\s!([1-3])(?=[\s.,;!?]|$)/, (m, n) => {
       if (r.prio) return false;
       r.prio = 4 - Number(n); // !1 = high
     });
   if (on('est'))
-    take(/\s\*(\d{1,2})(?=\s)/, (m, n) => {
+    take(/\s\*([1-9]\d?)(?=[\s.,;!?]|$)/, (m, n) => {
       if (r.est) return false;
       r.est = Math.min(20, Number(n));
     });
   if (on('area'))
-    take(/\s[@#](work|personal)(?=\s)/i, (m, w) => {
+    take(/\s[@#](work|personal)(?=[\s.,;!?]|$)/i, (m, w) => {
       if (r.area) return false;
       r.area = w.toLowerCase();
     });
-  take(/\s#([\p{L}\d_-]+)(?=\s)/gu, (m, tag) => {
+  take(/\s#(?=[\p{L}\d_-]*\p{L})([\p{L}\d_-]+)(?=[\s.,;!?]|$)/gu, (m, tag) => {
     const t = tag.toLowerCase();
     if (!on(`tag:${t}`)) return false;
     if (!r.tags.includes(t)) r.tags.push(t);
@@ -68,13 +70,13 @@ export function parseQuick(input, ignore = new Set()) {
   // dates (first match wins)
   if (on('due') && !r.due) {
     const dateRules = [
-      [/\s(\d{4}-\d{2}-\d{2})(?=\s)/, (m, d) => (ymd(parseYmd(d)) !== d ? false : (r.due = d))],
-      [/\sin\s+(\d{1,3})\s+(day|days|week|weeks)(?=\s)/i, (m, n, u) => (r.due = addDays(todayStr(), Number(n) * (u.toLowerCase().startsWith('w') ? 7 : 1)))],
-      [/\snext\s+week(?=\s)/i, () => (r.due = nextWeekday(1))],
-      [/\snext\s+([a-z]+)(?=\s)/i, (m, d) => (DOW[d.toLowerCase()] === undefined ? false : (r.due = nextWeekday(DOW[d.toLowerCase()])))],
-      [/\s(today|tonight)(?=\s)/i, () => (r.due = todayStr())],
-      [/\s(tomorrow|tmr|tmrw)(?=\s)/i, () => (r.due = addDays(todayStr(), 1))],
-      [new RegExp(`\\s(${DOW_RE})(?=\\s)`, 'i'), (m, d) => (r.due = nextWeekday(DOW[d.toLowerCase()]))],
+      [/\s(\d{4}-\d{2}-\d{2})(?=[\s.,;!?]|$)/, (m, d) => (ymd(parseYmd(d)) !== d ? false : (r.due = d))],
+      [/\sin\s+(\d{1,3})\s+(day|days|week|weeks)(?=[\s.,;!?]|$)/i, (m, n, u) => (r.due = addDays(todayStr(), Number(n) * (u.toLowerCase().startsWith('w') ? 7 : 1)))],
+      [/\snext\s+week(?=[\s.,;!?]|$)/i, () => (r.due = nextWeekday(1))],
+      [/\snext\s+([a-z]+)(?=[\s.,;!?]|$)/i, (m, d) => (DOW[d.toLowerCase()] === undefined ? false : (r.due = nextWeekday(DOW[d.toLowerCase()])))],
+      [/\s(today|tonight)(?=[\s.,;!?]|$)/i, () => (r.due = todayStr())],
+      [/\s(tomorrow|tmr|tmrw)(?=[\s.,;!?]|$)/i, () => (r.due = addDays(todayStr(), 1))],
+      [new RegExp(`\\s(${DOW_RE})(?=[\\s.,;!?]|$)`, 'i'), (m, d) => (r.due = nextWeekday(DOW[d.toLowerCase()]))],
     ];
     for (const [re, fn] of dateRules) {
       if (r.due) break;
@@ -89,6 +91,7 @@ export function parseQuick(input, ignore = new Set()) {
   }
 
   r.title = s.replace(/\s+/g, ' ').trim();
+  if (took) r.title = r.title.replace(/\s+([.,;!?])(?=\s|$)/g, '$1').replace(/^[.,;!?]+\s*/, '');
   if (!r.title) {
     // The user only typed tokens (e.g. just "tomorrow") — keep it as the title instead.
     return { ...empty(), title: original };

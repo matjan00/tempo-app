@@ -109,17 +109,28 @@ export const leaveZen = () => {
 
 function pickTask() {
   const today = todayStr();
-  const open = store.get().tasks.filter((t) => !t.done).sort((a, b) => (a.due === today ? -1 : 0) - (b.due === today ? -1 : 0) || b.prio - a.prio).slice(0, 40);
+  // overdue first, then today, then everything else; high priority first within each
+  const rank = (t) => (t.due && t.due < today ? 0 : t.due === today ? 1 : 2);
+  const open = store.get().tasks.filter((t) => !t.done).sort((a, b) => rank(a) - rank(b) || b.prio - a.prio);
   const cur = store.get().timer.taskId;
+  let limit = 40; // "show more" raises it
+  const rows = () =>
+    open.slice(0, limit).map((t) => `<button class="pick ${cur === t.id ? 'on' : ''}" data-id="${t.id}"><span class="check sm p${t.prio}" aria-hidden="true"></span><span class="pick-t">${esc(t.title || 'untitled')}</span>${t.due === today ? '<span class="pick-d">today</span>' : t.due && t.due < today ? '<span class="pick-d">overdue</span>' : ''}</button>`).join('') +
+    (open.length > limit ? `<button class="pick none" data-more="1">show ${Math.min(40, open.length - limit)} more</button>` : '');
   const rec = openSheet(
     `<h2 class="sh">work on…</h2>
     <div class="pick-list">
       <button class="pick none ${!cur ? 'on' : ''}" data-id="">no specific task</button>
-      ${open.map((t) => `<button class="pick ${cur === t.id ? 'on' : ''}" data-id="${t.id}"><span class="check sm p${t.prio}" aria-hidden="true"></span><span class="pick-t">${esc(t.title || 'untitled')}</span>${t.due === today ? '<span class="pick-d">today</span>' : ''}</button>`).join('')}
+      <div class="pick-rows" style="display:contents">${rows()}</div>
       ${open.length ? '' : '<div class="empty"><small>no open tasks yet. add one on the tasks tab.</small></div>'}
     </div>`
   );
   rec.body.addEventListener('click', (e) => {
+    if (e.target.closest('[data-more]')) {
+      limit += 40;
+      rec.body.querySelector('.pick-rows').innerHTML = rows();
+      return;
+    }
     const b = e.target.closest('.pick');
     if (!b) return;
     timer.setTask(b.dataset.id);

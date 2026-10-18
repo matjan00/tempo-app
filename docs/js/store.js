@@ -2,6 +2,13 @@
 import { uid, todayStr, addDays, parseYmd, ymd } from './util.js';
 
 const KEY = 'tempo.v1';
+const REV_KEY = KEY + '.rev'; // tiny companion key: lets a window cheaply notice that another window saved newer data
+const SCHEMA = 1; // bump when the saved shape changes, and add a step to MIGRATIONS
+// from-version -> fn(saved) returning the saved data in the next version's shape
+const MIGRATIONS = {};
+
+export let loadedCorrupt = false; // true when the saved data could not be read (a copy was kept under tempo.v1.corrupt-*)
+export let saveFailed = false; // true while the last attempt to save failed (storage full / blocked)
 
 export const DEFAULT_SETTINGS = {
   theme: 'auto', // auto | light | dark
@@ -20,7 +27,8 @@ export const DEFAULT_SETTINGS = {
 };
 
 const fresh = () => ({
-  v: 1,
+  v: SCHEMA,
+  rev: 0,
   tasks: [],
   pages: [],
   sessions: [],
@@ -34,10 +42,40 @@ const listeners = new Set();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return migrate(JSON.parse(raw));
+    if (raw) {
+      try {
+        const out = migrate(JSON.parse(raw));
+        out.rev = Math.max(out.rev, Number(localStorage.getItem(REV_KEY)) || 0);
+        return out;
+      } catch (e) {
+        // unreadable: keep the raw text so nothing is lost for good, then start over
+        console.warn('Saved data is corrupt', e);
+        loadedCorrupt = true;
+        try {
+          localStorage.setItem(`${KEY}.corrupt-${Date.now()}`, raw);
+        } catch {}
+      }
+    }
   } catch {}
   return seed(fresh());
 }
+
+const CLEAN_ID = /^[\w-]+$/;
+// A usable, unique id: keeps the saved one when it is a safe string nobody else uses yet.
+function cleanId(x, seen) {
+  let id = typeof x === 'number' ? String(x) : x;
+  if (typeof id !== 'string' || !CLEAN_ID.test(id) || seen.has(id)) {
+    do id = uid();
+    while (seen.has(id));
+  }
+  seen.add(id);
+  return id;
+}
+const num = (x, d) => (typeof x === 'number' || (typeof x === 'string' && x.trim() !== '')) && Number.isFinite(Number(x)) ? Number(x) : d;
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const REPEATS = ['daily', 'weekdays', 'weekly', 'monthly'];
+// same limits as the steppers in settings.js
+const LIMITS = { focus: [5, 90], short: [1, 30], long: [5, 60], every: [2, 8], goal: [1, 16] };
 
 const arr = (x) => (Array.isArray(x) ? x : []);
 const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
@@ -47,7 +85,10 @@ const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
 function migrate(s) {
   if (!isObj(s)) s = {};
   const f = fresh();
-  const out = { ...f, ...s, settings: { ...f.settings, ...(isObj(s.settings) ? s.settings : {}) }, timer: { ...f.timer, ...(isObj(s.timer) ? s.timer : {}) } };
+  // step an older save up to the current shape, one version at a time
+  let ver = Number(s.v) || 1;
+  while (ver < SCHEMA && MIGRATIONS[ver]) (s = MIGRATIONS[ver](s)), ver++;
+  const out = { ...f, ...s, v: SCHEMA, rev: Math.max(0, Number(s.rev) || 0), settings: { ...f.settings, ...(isObj(s.settings) ? s.settings : {}) }, timer: { ...f.timer, ...(isObj(s.timer) ? s.timer : {}) } };
   // old saves had projects + an inbox: every task is now either "work" or "personal"
   const oldProjects = arr(s.projects).filter(isObj);
   const areaOfProject = (id) => {
@@ -56,51 +97,101 @@ function migrate(s) {
   };
   delete out.projects;
   for (const k of ['tasks', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
+  const taskIds = new Set(), pageIds = new Set();
   out.tasks = out.tasks.map((t) => {
-    const n = { ...newTask(), id: t.id || uid(), ...t };
+    const n = { ...newTask(), ...t, id: cleanId(t.id, taskIds) };
     n.title = String(n.title ?? '');
     n.notes = String(n.notes ?? '');
     n.tags = arr(n.tags).map(String);
-    n.sub = arr(n.sub).filter(isObj).map((x) => ({ id: x.id || uid(), t: String(x.t ?? ''), d: !!x.d }));
+    const subIds = new Set();
+    n.sub = arr(n.sub).filter(isObj).map((x) => ({ id: cleanId(x.id, subIds), t: String(x.t ?? ''), d: !!x.d }));
     n.prio = [0, 1, 2, 3].includes(n.prio) ? n.prio : 0;
-    n.est = Number(n.est) || 0;
-    n.pomos = Number(n.pomos) || 0;
-    n.focusMin = Number(n.focusMin) || 0;
+    n.est = Math.max(0, num(n.est, 0));
+    n.pomos = Math.max(0, num(n.pomos, 0));
+    n.focusMin = Math.max(0, num(n.focusMin, 0));
+    n.done = n.done === true;
+    n.created = num(n.created, Date.now());
+    n.doneAt = n.done ? num(n.doneAt, null) : null;
+    if (typeof n.due !== 'string' || !YMD.test(n.due)) n.due = null;
+    if (!REPEATS.includes(n.repeat)) n.repeat = null;
+    if (!(n.repeatDay >= 1 && n.repeatDay <= 31)) delete n.repeatDay;
     if (n.status !== 'doing') n.status = 'todo';
     n.area = t.area === 'work' || t.area === 'personal' ? t.area : areaOfProject(t.project); // t = what was saved (n already has the default)
     delete n.project;
     return n;
   });
   out.pages = out.pages.map((p) => {
-    const n = { title: '', icon: '📄', pinned: false, created: Date.now(), updated: Date.now(), ...p, id: p.id || uid() };
+    const n = { title: '', icon: '📄', pinned: false, created: Date.now(), updated: Date.now(), ...p, id: cleanId(p.id, pageIds) };
     n.title = String(n.title ?? '');
-    n.blocks = arr(n.blocks).filter(isObj).map((x) => ({ ...newBlock(), ...x, id: x.id || uid(), text: String(x.text ?? '') }));
+    n.created = num(n.created, Date.now());
+    n.updated = num(n.updated, Date.now());
+    const blockIds = new Set();
+    n.blocks = arr(n.blocks).filter(isObj).map((x) => ({ ...newBlock(), ...x, id: cleanId(x.id, blockIds), text: String(x.text ?? '') }));
     if (!n.blocks.length) n.blocks.push(newBlock());
     return n;
   });
   out.sessions = out.sessions
     .filter((x) => Number.isFinite(x.end))
     .map((x) => {
-      const o = { ...x, min: Number(x.min) || 0 };
+      const o = { ...x, min: Math.max(0, num(x.min, 0)) };
       o.area = x.area === 'work' || x.area === 'personal' ? x.area : x.project ? areaOfProject(x.project) : null;
       delete o.project;
       return o;
     });
+  for (const k in LIMITS) {
+    const [lo, hi] = LIMITS[k];
+    out.settings[k] = Math.min(hi, Math.max(lo, Math.round(num(out.settings[k], DEFAULT_SETTINGS[k]))));
+  }
+  if (!['auto', 'light', 'dark'].includes(out.settings.theme)) out.settings.theme = DEFAULT_SETTINGS.theme;
+  if (!['off', 'brown', 'pink', 'white'].includes(out.settings.noise)) out.settings.noise = DEFAULT_SETTINGS.noise;
   const t = out.timer;
   if (!['focus', 'short', 'long'].includes(t.mode)) t.mode = 'focus';
   if (t.running && !Number.isFinite(t.endAt)) Object.assign(t, { running: false, endAt: null, remaining: null });
-  t.cycle = Number(t.cycle) || 0;
+  t.cycle = Math.max(0, num(t.cycle, 0));
+  if (t.remaining !== null && !Number.isFinite(t.remaining)) t.remaining = null;
+  if (t.startedAt !== null && !Number.isFinite(t.startedAt)) t.startedAt = null;
+  if (typeof t.taskId !== 'string') t.taskId = null;
   return out;
 }
 
 let saveTimer;
 let frozen = false; // set by resetAll(): stop writing so the wipe is not undone on the way out
+// Writes are frozen after a reset; thaw() lets a page that stays open (no reload) save again.
+export const thaw = () => {
+  frozen = false;
+};
+const setSaveFailed = (v) => {
+  if (v === saveFailed) return;
+  saveFailed = v;
+  window.dispatchEvent(new CustomEvent(v ? 'store-save-failed' : 'store-save-ok'));
+};
+// Take data another window saved (only when it is newer than ours).
+function adopt(raw) {
+  try {
+    const next = migrate(JSON.parse(raw));
+    if (next.rev <= (state.rev || 0)) return false;
+    state = next;
+    return true;
+  } catch {
+    return false;
+  }
+}
 function write() {
   if (frozen) return;
   try {
+    // another window saved newer data than we have: take it instead of overwriting it with stale state
+    const stored = Number(localStorage.getItem(REV_KEY)) || 0;
+    if (stored > (state.rev || 0) && adopt(localStorage.getItem(KEY))) {
+      emit();
+      return;
+    }
+    state.rev = (state.rev || 0) + 1;
     localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(REV_KEY, String(state.rev));
+    setSaveFailed(false);
   } catch (e) {
     console.warn('Could not save', e);
+    setSaveFailed(true); // the next save retries
   }
 }
 export function save() {
@@ -113,20 +204,44 @@ const flush = () => {
 };
 addEventListener('pagehide', flush);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
+// another window (or home-screen app + browser tab) changed the data: show it instead of clobbering it later
+addEventListener('storage', (e) => {
+  if (frozen || e.key !== KEY || !e.newValue) return;
+  if (adopt(e.newValue)) {
+    clearTimeout(saveTimer);
+    emit();
+  }
+});
 
 export const get = () => state;
 export const subscribe = (fn) => (listeners.add(fn), () => listeners.delete(fn));
-export const emit = () => listeners.forEach((fn) => fn());
+export const emit = () =>
+  listeners.forEach((fn) => {
+    try {
+      fn();
+    } catch (e) {
+      console.error(e);
+    }
+  });
 
 // silent = save without re-rendering the screen (used while typing).
 export function mutate(fn, silent = false) {
-  fn(state);
+  try {
+    fn(state);
+  } catch (e) {
+    console.error(e); // keep whatever was changed so far and still save / redraw, so the screen matches the data
+  }
   save();
   if (!silent) emit();
 }
 
 export function replaceAll(data) {
-  state = migrate(data);
+  const next = migrate(data);
+  next.rev = state.rev || 0; // counts as newer than what is saved
+  // a running timer from a backup would log a phantom session the moment it "ends": pause it instead
+  const t = next.timer;
+  if (t.running) Object.assign(t, { running: false, remaining: Math.max(0, t.endAt - Date.now()), endAt: null });
+  state = next;
   flush();
   emit();
 }
@@ -138,6 +253,7 @@ export function resetAll() {
   frozen = true;
   try {
     // an empty app (no sample tasks): saving the blank state means the next start doesn't re-seed examples
+    localStorage.removeItem(REV_KEY);
     localStorage.setItem(KEY, JSON.stringify(fresh()));
   } catch {}
 }
@@ -174,7 +290,10 @@ export function addTask(p) {
 export function updateTask(id, patch, silent = false) {
   mutate((s) => {
     const t = s.tasks.find((x) => x.id === id);
-    if (t) Object.assign(t, patch);
+    if (!t) return;
+    Object.assign(t, patch);
+    // the monthly target day belongs to the old due date / rule: recompute it from the new one
+    if (('due' in patch || 'repeat' in patch) && !('repeatDay' in patch)) delete t.repeatDay;
   }, silent);
 }
 
@@ -184,7 +303,7 @@ const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
 // on Mondays even when it is finished late) until the date is after today.
 export function nextDue(t, today = todayStr()) {
   const start = t.due || today;
-  const anchorDay = t.repeatDay || parseYmd(start).getDate(); // monthly: keep "the 31st" as the target day
+  const anchorDay = t.repeatDay >= 1 && t.repeatDay <= 31 ? t.repeatDay : parseYmd(start).getDate(); // monthly: keep "the 31st" as the target day
   let d = parseYmd(start);
   const step = () => {
     if (t.repeat === 'daily') d.setDate(d.getDate() + 1);
@@ -222,22 +341,32 @@ export function setDone(id, done) {
         created: Date.now(),
         sub: t.sub.map((x) => ({ ...x, id: uid(), d: false })),
       };
+      delete next.repeatDay;
       if (t.repeat === 'monthly') next.repeatDay = t.repeatDay || parseYmd(t.due || todayStr()).getDate();
       delete next.nextId;
+      delete next.nextMade;
       s.tasks.unshift(next);
       t.nextId = next.id; // lets "undo" take the new copy back
+      t.nextMade = { title: next.title, notes: next.notes, due: next.due, sub: next.sub.map((x) => x.t) }; // how the copy looked when made
       t.repeat = null; // the finished copy stays in history without repeating
     }
     if (!done && t.nextId) {
-      // Undo of a repeating task: remove the copy that was created (if it is still untouched) and repeat again.
+      // Undo of a repeating task: remove the copy that was created, but only while it is still untouched.
+      // If it was edited, worked on or finished, keep it and just reopen this one. If it is gone, leave the repeat off.
       const copy = s.tasks.find((x) => x.id === t.nextId);
-      if (copy && !copy.done) {
+      const m = t.nextMade;
+      const untouched =
+        copy && m && !copy.done && copy.title === m.title && copy.notes === m.notes && copy.due === m.due &&
+        copy.pomos === 0 && copy.focusMin === 0 && copy.sub.length === m.sub.length &&
+        copy.sub.every((x, i) => !x.d && x.t === m.sub[i]);
+      if (untouched) {
         t.repeat = copy.repeat;
         if (copy.repeatDay) t.repeatDay = copy.repeatDay;
         s.tasks = s.tasks.filter((x) => x !== copy);
         if (s.timer.taskId === copy.id) s.timer.taskId = t.id;
       }
       delete t.nextId;
+      delete t.nextMade;
     }
   });
 }

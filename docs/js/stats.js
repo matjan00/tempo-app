@@ -41,7 +41,7 @@ function barChart(days, byDay, today) {
   const vals = days.map((d) => byDay[d] || 0);
   const rawMax = Math.max(...vals, 30);
   const step = rawMax <= 60 ? 15 : rawMax <= 180 ? 30 : rawMax <= 480 ? 60 : 120;
-  const max = Math.ceil(rawMax / step) * step;
+  const max = Math.ceil(rawMax / (2 * step)) * 2 * step; // an even number of steps, so the middle tick is a round number too
   const ch = H - top - bot;
   const n = days.length;
   const slot = (W - padL - padR) / n;
@@ -73,7 +73,9 @@ function barChart(days, byDay, today) {
 function heatmap(byDay, today) {
   const weeks = 15;
   const start = addDays(mondayOf(today), -7 * (weeks - 1));
-  const max = Math.max(30, ...Object.values(byDay));
+  // scale to the busiest day that is actually on screen (older days outside the window should not dim it)
+  let max = 30;
+  for (let i = 0; i < weeks * 7; i++) max = Math.max(max, byDay[addDays(start, i)] || 0);
   let cols = '';
   let months = '';
   let lastM = -1;
