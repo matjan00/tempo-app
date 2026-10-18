@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ededed">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="to-do">
 <title>to-do</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -24,6 +25,8 @@
   } catch (e) {
     document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  var m = document.querySelector('meta[name=theme-color]');
+  if (m) m.setAttribute('content', document.documentElement.dataset.theme === 'dark' ? '#111111' : '#ededed');
 </script>
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/notes.css">
@@ -33,7 +36,7 @@
 </head>
 <body>
 <div id="app">
-  <main id="screen"></main>
+  <main id="screen"><noscript><p>to-do needs JavaScript to run. please enable it and reload.</p></noscript></main>
   <nav id="nav" aria-label="Main"></nav>
 </div>
 <div id="layers"></div>

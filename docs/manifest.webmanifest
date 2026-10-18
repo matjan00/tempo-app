@@ -1,11 +1,13 @@
 {
+  "id": "./",
   "name": "to-do",
+  "lang": "en",
   "short_name": "to-do",
   "description": "tasks, notes and a focus timer in one app.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#ededed",
   "theme_color": "#ededed",
   "icons": [

@@ -32,7 +32,7 @@
 .notes-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .notes-title { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .notes-snip { font-size: 13.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.notes-snip i { opacity: .7; }
+.notes-snip i { opacity: 1; }
 .notes-time { flex: none; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 3px; }
 .notes-time .ic { color: var(--accent); }
 .notes-empty-ic { display: grid; place-items: center; color: var(--muted); margin-bottom: 8px; }
@@ -52,7 +52,7 @@
 }
 .pg-bar {
   flex: none; display: flex; align-items: center; gap: 4px;
-  padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 6px;
+  padding: calc(var(--safe-t) + 8px) calc(12px + var(--safe-r)) 6px calc(12px + var(--safe-l));
 }
 .pg-grow { flex: 1; }
 .pg-pin.on { color: var(--accent); }
@@ -61,7 +61,7 @@
   flex: 1; overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch; scroll-padding-bottom: 130px;
 }
-.pg-inner { max-width: 720px; margin: 0 auto; padding: 4px 22px 40vh; }
+.pg-inner { max-width: 720px; margin: 0 auto; padding: 4px calc(22px + var(--safe-r)) 40vh calc(22px + var(--safe-l)); }
 .pg-emoji {
   display: block; width: 64px; height: 64px; margin: 0 0 6px -6px;
   border: 0; border-radius: 18px; background: transparent; font-size: 44px; line-height: 1; cursor: pointer;
@@ -72,7 +72,7 @@
   border: 0; outline: 0; padding: 0; margin: 0 0 14px; background: transparent;
   color: var(--text); font: inherit; font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em;
 }
-.pg-title::placeholder { color: var(--muted); opacity: .6; }
+.pg-title::placeholder { color: var(--muted); opacity: 1; }
 
 .blk { display: flex; align-items: flex-start; gap: 8px; margin: 1px 0; position: relative; }
 .blk .txt {
@@ -80,7 +80,7 @@
   font-size: 16.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
   -webkit-user-modify: read-write-plaintext-only; caret-color: var(--accent);
 }
-.blk .txt:empty::before { content: attr(data-ph); color: var(--muted); opacity: .55; pointer-events: none; }
+.blk .txt:empty::before { content: attr(data-ph); color: var(--muted); pointer-events: none; }
 .blk-p .txt:empty:not(:focus)::before { content: none; }
 .blk-bullet .txt:empty:not(:focus)::before,
 .blk-num .txt:empty:not(:focus)::before,
@@ -109,13 +109,13 @@
 
 /* ---------- dock (toolbar + slash menu) ---------- */
 .pg-dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
-  display: none; flex-direction: column; gap: 8px; padding: 0 0 env(safe-area-inset-bottom, 0px);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-dock);
+  display: none; flex-direction: column; gap: 8px; padding: 0 var(--safe-r) var(--safe-b) var(--safe-l);
 }
 .pg-dock.on { display: flex; }
 .pg-tools {
   display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none;
-  padding: 6px 10px; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px calc(10px + var(--safe-r)) 6px calc(10px + var(--safe-l)); background: var(--surface); border-top: 1px solid var(--line);
 }
 .pg-tools::-webkit-scrollbar { display: none; }
 .pg-tool {
@@ -126,7 +126,7 @@
 .pg-tool b { font-weight: 700; }
 .pg-tool:active { background: var(--surface2); }
 .pg-tool.on { background: var(--accent); color: var(--accent-ink); }
-.pg-tool.pg-danger { color: #e5484d; }
+.pg-tool.pg-danger { color: var(--danger); }
 .pg-sep { flex: none; width: 1px; height: 22px; margin: 0 6px; background: var(--line); }
 .pg-slash {
   align-self: flex-start; margin: 0 12px; max-height: 40vh; overflow-y: auto; min-width: 220px;
@@ -154,4 +154,4 @@
   background: transparent; color: var(--text); font: inherit; font-size: 16px; text-align: left; cursor: pointer;
 }
 .pg-menu button:active { background: var(--surface2); }
-.pg-menu .pg-danger { color: #e5484d; }
+.pg-menu .pg-danger { color: var(--danger); }
