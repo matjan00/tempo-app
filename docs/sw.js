@@ -1,12 +1,23 @@
 // Offline cache. Bump VERSION (scripts/release.cjs does it) so phones replace their saved copy.
-const VERSION = 'tempo-v15';
+const VERSION = 'tempo-v16';
 // FILES-START
+// HASH: 3d88745b60d0
 const FILES = ["./","css/app.css","css/ink.css","css/notes.css","css/settings.css","css/stats.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/focus.js","js/icons.js","js/install.js","js/notes.js","js/parse.js","js/push-config.js","js/push.js","js/settings.js","js/stats.js","js/store.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
 // FILES-END
 
 self.addEventListener('install', (e) => {
+  // All-or-nothing: if any file fails to download the install fails and the old cache keeps serving.
   e.waitUntil(
-    caches.open(VERSION).then((c) => Promise.all(FILES.map((f) => fetch(new Request(f, { cache: 'reload' })).then((r) => r.ok && c.put(f, r))))).then(() => self.skipWaiting())
+    caches.open(VERSION).then((c) =>
+      Promise.all(
+        FILES.map((f) =>
+          fetch(new Request(f, { cache: 'reload' })).then((r) => {
+            if (!r.ok) throw new Error('precache failed: ' + f + ' ' + r.status);
+            return c.put(f, r);
+          })
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -42,9 +53,27 @@ self.addEventListener('push', (e) => {
   );
 });
 
+// The browser rotated or dropped the push subscription. Try to resubscribe with the same server key and
+// ask any open window to re-register it (the app re-sends the new subscription on its next schedule call).
+self.addEventListener('pushsubscriptionchange', (e) => {
+  e.waitUntil(
+    (async () => {
+      try {
+        const key = e.oldSubscription && e.oldSubscription.options && e.oldSubscription.options.applicationServerKey;
+        if (key) await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      } catch {}
+      const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      cs.forEach((c) => c.postMessage({ type: 'push-subscription-changed' }));
+    })()
+  );
+});
+
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow('./')))
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+      const c = cs.find((w) => w.visibilityState === 'visible') || cs[0];
+      return c ? c.focus() : self.clients.openWindow('./');
+    })
   );
 });

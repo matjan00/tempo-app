@@ -19,16 +19,43 @@ async function registration() {
   return reg;
 }
 
+const sameKey = (buf, key) => {
+  if (!buf) return false;
+  const a = new Uint8Array(buf);
+  return a.length === key.length && a.every((v, i) => v === key[i]);
+};
+
+// Random per-install secret. The server stores it with the timer and requires it again to cancel/overwrite.
+let memToken = null;
+function token() {
+  try {
+    let t = localStorage.getItem('tempo.pushToken');
+    if (!t || t.length < 20) {
+      t = Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('tempo.pushToken', t);
+    }
+    return t;
+  } catch {
+    return (memToken ||= Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, '0')).join(''));
+  }
+}
+
 async function subscription(create) {
   const reg = await registration();
+  const key = toKey(VAPID_PUBLIC_KEY);
   let sub = await reg.pushManager.getSubscription();
-  if (!sub && create) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(VAPID_PUBLIC_KEY) });
+  // A subscription made with a different server key can never receive our pushes: replace it.
+  if (sub && !sameKey(sub.options?.applicationServerKey, key)) {
+    await sub.unsubscribe().catch(() => {});
+    sub = null;
+  }
+  if (!sub && create) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   return sub;
 }
 
 async function call(payload) {
-  const res = await fetch(PUSH_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true });
-  if (!res.ok) throw new Error('push ' + res.status);
+  const res = await fetch(PUSH_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...payload, token: token() }), keepalive: true });
+  if (!res.ok) throw new Error('push server answered ' + res.status);
 }
 
 // Ask permission + subscribe. Returns { ok: true } or { ok: false, why: 'plain-language reason' }.
@@ -55,20 +82,39 @@ export async function disable() {
   } catch {}
 }
 
+// Return shape (never throws):
+//   { ok: true }                        timer registered on the server
+//   { ok: true, skipped: true }         push is off/unsupported, nothing to do
+//   { ok: false, error: 'message' }     failed; `error` is plain text safe to show in a toast
+// Always an object, so `if (!(await schedule(...)).ok)` and `await schedule(...)` both work.
 export async function schedule(fireAt, title, body) {
-  if (!enabled()) return;
+  if (!enabled()) return { ok: true, skipped: true };
   try {
     const sub = await subscription(true);
     await call({ action: 'schedule', sub: sub.toJSON(), fireAt, title, body });
+    return { ok: true };
   } catch (e) {
     console.warn('Could not schedule the locked-phone alarm', e);
+    return { ok: false, error: String(e?.message || e) };
   }
 }
 
+// Same return shape as schedule().
 export async function cancel() {
-  if (!enabled()) return;
+  if (!enabled()) return { ok: true, skipped: true };
   try {
     const sub = await subscription(false);
     if (sub) await call({ action: 'cancel', sub: sub.toJSON() });
-  } catch {}
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
 }
+
+// The service worker tells us when the browser rotated the subscription. The next schedule() picks up
+// the fresh one automatically; this just makes sure one exists.
+try {
+  navigator.serviceWorker?.addEventListener('message', (ev) => {
+    if (ev.data?.type === 'push-subscription-changed' && enabled()) subscription(true).catch(() => {});
+  });
+} catch {}

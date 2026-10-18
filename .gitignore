@@ -1,0 +1,8 @@
+supabase/.temp/
+supabase/supabase/
+.impeccable/
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

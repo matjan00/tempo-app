@@ -117,18 +117,18 @@ Storage keys (`tempo.v1`, `tempo.theme`, `tempo.tab`, `tempo.hideInstall`) are u
 - **Pressed states** follow the ink style: shadowed things press in, flat things invert. Task rows show feedback while held.
 - **Keyboard focus** gets a thick accent outline (`:focus-visible` only). Sheets take focus when they open.
 - **Screen-reader labels**: aria labels, pressed and current-page states, a timer role and a checkbox role in notes.
-- **Contrast**: small red text (overdue, today, active tab) uses a deeper shade of the accent on light grey, about 5.7:1. Dark mode keeps the bright accent.
+- **Contrast**: small red text (overdue, today, active tab) uses a deeper shade of the accent on light grey, about 5.2:1. Dark mode keeps the bright accent.
 - **Empty and first-run states** are clearer on Today, Tasks (per project / inbox / all done), Notes search and Stats. The streak card says "focus today to keep it".
 - **Small phones (≤360px)**: tighter gutters, a smaller install banner, and the settings swatches fit on one row.
 - **Keyboard**: the viewport uses `interactive-widget=resizes-content`, so on Android Chrome the quick-add bar and notes toolbar sit right above the keyboard.
 - Stats bars are solid ink with today in the accent colour. The range toggle now says "30 days", which is what it shows.
 
 ## Known leftovers / not verified
-- White text on the red accent (buttons, the play icon) is 3.7:1. That is fine for large or bold UI but below 4.5:1 for normal text. Switching red's `ink` to `#111` in `theme.js` would fix it, but that is a design call.
+- White text on the red accent was 3.7:1; buttons now use dark text on red (5.1:1, see Contrast and size above).
 - Needs a real phone to confirm:
   - The keyboard-open layout.
   - Long-press timing with Android's own long-press and haptics.
   - Backspace at the start of an empty note block with Gboard, which may only send a `beforeinput` event.
   - Locked-phone alarms.
-- `sw.js` VERSION was not bumped. Run `scripts/release.cjs` before publishing, or phones will keep the old cached files.
+- Run `scripts/release.cjs` before publishing (or `--check` to see whether it is needed), or phones will keep the old cached files.
 - Subtask deletion inside the task sheet still has no undo (it is a small, local edit).
