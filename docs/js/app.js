@@ -8,7 +8,7 @@ import * as tasks from './tasks.js';
 import * as focus from './focus.js';
 import * as notes from './notes.js';
 import * as stats from './stats.js';
-import { closeAll } from './ui.js';
+import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
 import { bindLongPress } from './components.js';
 
 const TABS = [
@@ -28,7 +28,15 @@ try {
 } catch {}
 
 function drawNav() {
-  nav.innerHTML = TABS.map(([k, label, ic]) => `<button data-tab="${k}" class="${k === tab ? 'on' : ''}" ${k === tab ? 'aria-current="page"' : ''}>${icon(ic, 23)}<span>${label}</span></button>`).join('');
+  // built once; afterwards only the highlighted tab changes, so keyboard focus on the bar is never lost
+  if (nav.children.length !== TABS.length)
+    nav.innerHTML = TABS.map(([k, label, ic]) => `<button type="button" data-tab="${k}">${icon(ic, 23)}<span>${label}</span></button>`).join('');
+  for (const b of nav.children) {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  }
 }
 
 function render() {
@@ -41,6 +49,7 @@ function render() {
     pos: el.selectionStart,
   }));
   const scroll = root.scrollTop;
+  const snap = kept.some((k) => k.focused) ? null : focusSnapshot(root); // any other focused control (task row, button…)
   root.onclick = root.oninput = root.onchange = root.onkeydown = null;
   mod.render(root);
   root.scrollTop = scroll;
@@ -58,12 +67,13 @@ function render() {
       } catch {}
     }
   }
+  if (snap) focusRestore(root, snap);
 }
 
 // Each tab remembers where it was scrolled to (for this session), so switching tabs doesn't lose your place.
 const scrollOf = {};
 function go(next) {
-  if (next === tab) return root.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  if (next === tab) return root.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
   scrollOf[tab] = root.scrollTop;
   tab = next;
   try {
@@ -72,9 +82,9 @@ function go(next) {
   if (tab !== 'focus') focus.leaveZen();
   drawNav();
   root.scrollTop = 0;
+  root.dataset.tab = tab; // before render(): the screens (and the quick-add bar) read it
   render();
   root.scrollTop = scrollOf[tab] || 0;
-  root.dataset.tab = tab;
 }
 
 nav.addEventListener('click', (e) => {
@@ -98,28 +108,57 @@ document.addEventListener('focusout', (e) => e.target.classList?.contains('qa-in
 
 onInstallChange(() => store.emit());
 
-store.subscribe(() => {
+// the theme only needs repainting when theme / accent changed (not on every task edit)
+let themeKey = '';
+const themeNow = () => {
+  const { theme, accent } = store.get().settings;
+  return `${theme}|${accent}`;
+};
+const syncTheme = () => {
+  const k = themeNow();
+  if (k === themeKey) return;
   applyTheme();
+  themeKey = themeNow(); // applyTheme may have corrected an unknown accent
+};
+store.subscribe(() => {
+  syncTheme();
   render();
+});
+
+// Saving to the phone's storage failed (full / blocked) or the saved data was unreadable: say so, once.
+let saveFailed = false;
+window.addEventListener('store-save-failed', () => {
+  if (saveFailed) return;
+  saveFailed = true;
+  toast('could not save your changes. the phone storage may be full. export a backup now.', { ms: 10000 });
+});
+window.addEventListener('store-save-ok', () => {
+  if (!saveFailed) return;
+  saveFailed = false;
+  toast('saving works again');
 });
 
 // Timer heartbeat
 let lastTitle = '';
 let lastDay = new Date().toDateString();
-setInterval(() => {
-  // the app may stay open past midnight: redraw so "today", overdue and stats move to the new day
+// the app may stay open past midnight: redraw so "today", overdue and stats move to the new day
+function checkDay() {
   const day = new Date().toDateString();
   if (day !== lastDay) {
     lastDay = day;
     store.emit();
   }
-  timer.tick();
-  if (tab === 'focus') focus.tickUI();
+}
+setInterval(() => {
+  checkDay(); // cheap, and also runs while hidden (the browser throttles hidden timers anyway)
+  timer.tick(); // must keep running: it is what ends a session
   const v = timer.view();
+  if (document.hidden && !v.running && lastTitle === 'to-do') return; // nothing visible changes
+  if (!document.hidden && tab === 'focus') focus.tickUI();
   const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode].toLowerCase()}` : 'to-do';
   if (title !== lastTitle) document.title = lastTitle = title;
 }, 250);
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (timer.tick(), tab === 'focus' && focus.tickUI()));
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (checkDay(), timer.tick(), tab === 'focus' && focus.tickUI()));
 
 
 // Service worker (offline + installable). Reload once when a new version takes over.
@@ -140,7 +179,10 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 bindLongPress(root); // press-and-hold a task row for quick actions (bound once: #screen is never replaced)
 
 applyTheme();
+themeKey = themeNow();
 drawNav();
+// the saved data was unreadable at start-up (flag set by the store; may not exist in older builds)
+if (store.loadedCorrupt) toast('your saved data could not be read, so the app started fresh. import a backup if you have one.', { ms: 12000 });
 root.dataset.tab = tab;
 render();
 timer.sync();

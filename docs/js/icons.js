@@ -1,4 +1,6 @@
 // Minimal line icons (24x24, stroke = currentColor).
+import { esc } from './util.js';
+
 const P = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8.2 12.2 2.7 2.7 5-5.6"/>',
@@ -41,8 +43,10 @@ const P = {
   leaf: '<path d="M5 19c0-8 4-13 14-14 0 9-4 14-12 14M5 19l7-7"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
   bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM10 20.5a2 2 0 0 0 4 0"/>',
-  fire: '<path d="M12 21c3.8 0 6.5-2.6 6.5-6.2 0-2.4-1.3-4-2.6-5.5-.4 1.4-1.1 2.2-2 2.6.3-3.3-.9-6.2-3.9-8.4-.2 3-1.9 4.6-3.2 6.3C5.7 11.5 5.5 13 5.5 14.8 5.5 18.400 8.2 21 12 21z"/>',
+  fire: '<path d="M12 21c3.8 0 6.5-2.6 6.5-6.2 0-2.4-1.3-4-2.6-5.5-.4 1.4-1.1 2.2-2 2.6.3-3.3-.9-6.2-3.9-8.4-.2 3-1.9 4.6-3.2 6.3C5.7 11.5 5.5 13 5.5 14.8 5.5 18.4 8.2 21 12 21z"/>',
 };
 
-export const icon = (name, size = 22, cls = '') =>
-  `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
+export const icon = (name, size = 22, cls = '') => {
+  if (!P[name]) console.warn(`icon: unknown name "${name}"`);
+  return `<svg class="ic ${esc(cls)}" width="${Number(size) || 22}" height="${Number(size) || 22}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
+};

@@ -21,6 +21,8 @@ export function resolvedTheme() {
 
 export function applyTheme() {
   const s = store.get().settings;
+  // an accent from a corrupt save / imported backup: fall back to the default and fix the saved value
+  if (!Object.hasOwn(ACCENTS, s.accent)) store.mutate((st) => (st.settings.accent = 'coral'), true);
   const theme = resolvedTheme();
   const root = document.documentElement;
   root.dataset.theme = theme;

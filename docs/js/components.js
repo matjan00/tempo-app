@@ -1,7 +1,7 @@
 // Pieces shared by Today and Tasks: task rows, quick-add composer, task detail sheet.
 import * as store from './store.js';
 import { parseQuick } from './parse.js';
-import { openSheet, toast } from './ui.js';
+import { openSheet, toast, scrollToEl } from './ui.js';
 import { icon } from './icons.js';
 import { esc, fmtDate, todayStr, addDays, parseYmd, haptic, uid } from './util.js';
 
@@ -36,10 +36,10 @@ export function taskRow(t, { showArea = true } = {}) {
   if (t.repeat) meta.push(`<span class="m">${icon('repeat', 13)}</span>`);
   for (const tag of t.tags.slice(0, 3)) meta.push(`<span class="m tag">#${esc(tag)}</span>`);
   const title = t.title.trim() ? esc(t.title) : '<span class="muted">untitled</span>';
-  return `<div class="task ${t.done ? 'done' : ''}" data-id="${t.id}">
-    <button class="check p${t.prio}" data-act="toggle" aria-label="${t.done ? 'mark as not done' : 'mark as done'}: ${esc(t.title)}">${t.done ? icon('check', 15) : ''}</button>
-    <button type="button" class="t-main" data-act="open" aria-label="open ${esc(t.title)}"><span class="t-title">${title}</span>${meta.length ? `<span class="t-meta">${meta.join('')}</span>` : ''}</button>
-    ${t.done ? '' : `<button class="icon-btn t-play" data-act="focus" aria-label="focus on this task">${icon('play', 16)}</button>`}
+  return `<div class="task ${t.done ? 'done' : ''}" data-id="${esc(t.id)}">
+    <button type="button" class="check p${t.prio}" data-act="toggle" role="checkbox" aria-checked="${!!t.done}" aria-label="${esc(t.title.trim() || 'untitled')}">${t.done ? icon('check', 15) : ''}</button>
+    <button type="button" class="t-main" data-act="open" aria-keyshortcuts="Shift+F10" title="Shift+F10: more actions"><span class="t-title">${title}</span>${meta.length ? `<span class="t-meta">${meta.join('')}</span>` : ''}</button>
+    ${t.done ? '' : `<button type="button" class="icon-btn t-play" data-act="focus" aria-label="start focus on ${esc(t.title.trim() || 'untitled')}">${icon('play', 16)}</button>`}
   </div>`;
 }
 
@@ -54,6 +54,7 @@ export function toggleDone(id, row = null) {
   if (row) {
     row.classList.toggle('done', done);
     row.querySelector('.check')?.classList.toggle('pop', done);
+    row.querySelector('.check')?.setAttribute('aria-checked', done);
   }
   const apply = () => {
     pending.delete(id);
@@ -97,8 +98,11 @@ export function bindLongPress(root) {
     root.querySelectorAll('.pressing').forEach((x) => x.classList.remove('pressing'));
   };
   root.addEventListener('pointerdown', (e) => {
+    // a new press clears the "this click ends a long-press" mark of the previous one
+    root.querySelectorAll('[data-held]').forEach((x) => delete x.dataset.held);
     const row = e.target.closest(HOLDABLE);
-    if (!row || e.button > 0) return;
+    // touch / pen only (a mouse uses right-click); the checkbox and play button keep their plain tap
+    if (!row || e.button > 0 || (e.pointerType !== 'touch' && e.pointerType !== 'pen') || e.target.closest('.check, .t-play')) return;
     cancel();
     start = { x: e.clientX, y: e.clientY };
     row.classList.add('pressing');
@@ -115,6 +119,14 @@ export function bindLongPress(root) {
   });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => root.addEventListener(ev, cancel));
   root.addEventListener('scroll', cancel, true);
+  // keyboard: Shift+F10 / the Menu key on a focused task (browsers send "contextmenu" for it too; this covers the rest)
+  root.addEventListener('keydown', (e) => {
+    if (!(e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey))) return;
+    const row = e.target.closest?.(HOLDABLE);
+    if (!row) return;
+    e.preventDefault();
+    taskActions(row.dataset.id);
+  });
   root.addEventListener('contextmenu', (e) => {
     const row = e.target.closest(HOLDABLE);
     if (!row) return;
@@ -130,9 +142,11 @@ const nextMonday = () => {
   return addDays(todayStr(), ((8 - d.getDay()) % 7) || 7);
 };
 
+let lastActions = 0;
 export function taskActions(id) {
   const t = store.getTask(id);
-  if (!t) return;
+  if (!t || Date.now() - lastActions < 400) return; // keyboard + contextmenu can both fire for one gesture
+  lastActions = Date.now();
   const today = todayStr();
   const opt = (k, ic, label, on = false) => `<button type="button" class="qa-act ${on ? 'on' : ''}" data-qa="${k}">${icon(ic, 19)}<span>${label}</span></button>`;
   const rec = openSheet(
@@ -155,7 +169,7 @@ export function taskActions(id) {
         ${opt('delete', 'trash', 'delete')}
       </div>
     </div>`,
-    { cls: 'small' }
+    { cls: 'small', ariaLabel: 'task actions' }
   );
   rec.body.addEventListener('click', (e) => {
     const b = e.target.closest('[data-qa]');
@@ -199,12 +213,16 @@ export function composer({ placeholder = 'add a task…', hint = true } = {}) {
   </div>`;
 }
 
-// Words the user tapped away in the preview chips stay in the title. Kept across re-renders while typing.
-let ignored = new Set();
+// Words the user tapped away in the preview chips stay in the title. Kept across re-renders while typing,
+// but separately per screen (Today / Tasks), so one bar's choices never leak into the other.
+const ignoredBy = new Map();
 
 export function bindComposer(root, getDefaults = () => ({})) {
   const form = root.querySelector('.qa-form');
   if (!form) return;
+  const screenKey = root.dataset.tab || '';
+  const ignored = ignoredBy.get(screenKey) || new Set();
+  ignoredBy.set(screenKey, ignored);
   const input = form.querySelector('.qa-input');
   const chips = root.querySelector('.qa-chips');
   const hint = root.querySelector('.qa-hint');
@@ -226,7 +244,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
   const dateIn = form.querySelector('.qa-date-in');
   let picked = ''; // date chosen with the calendar button; a date typed in the title wins over it
   const show = () => {
-    if (!input.value.trim()) ignored = new Set();
+    if (!input.value.trim()) ignored.clear();
     const r = parseQuick(input.value, ignored);
     const c = [];
     if (picked && !r.due) c.push(`<button type="button" class="m chip-sm" data-pick="1" aria-label="remove the picked date">${icon('calendar', 13)}${fmtDate(picked)}${icon('x', 12, 'chip-x')}</button>`);
@@ -269,7 +287,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
     const d = getDefaults();
     const pickedDue = picked;
     input.value = '';
-    ignored = new Set();
+    ignored.clear();
     picked = dateIn.value = '';
     show();
     haptic(8);
@@ -282,12 +300,12 @@ export function bindComposer(root, getDefaults = () => ({})) {
       repeat: r.repeat,
       est: r.est,
     });
-    document.querySelector('[data-keep=qa]')?.focus();
+    root.querySelector('[data-keep=qa]')?.focus();
     // briefly highlight the new row so it is easy to spot
-    const row = document.querySelector(`.task[data-id="${t.id}"]`);
+    const row = root.querySelector(`.task[data-id="${CSS.escape(t.id)}"]`);
     if (row) {
       row.classList.add('fresh');
-      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      scrollToEl(row);
     } else {
       // the new task is not on this screen: say exactly where it went
       toast(t.due ? `added for ${fmtDate(t.due).toLowerCase()} · ${t.area}` : `added to ${t.area}`);
@@ -314,7 +332,7 @@ export function openTask(id) {
     `<div class="ts">
       <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button>
         ${t0.done ? '' : `<button type="button" class="btn primary" id="ts-start">${icon('play', 16)} start focus</button>`}</div>
-      <div class="ts-head"><button class="check big p${t0.prio} ${t0.done ? 'on' : ''}" id="ts-check" aria-label="${t0.done ? 'mark as not done' : 'mark as done'}">${t0.done ? icon('check', 18) : ''}</button>
+      <div class="ts-head"><button type="button" class="check big p${t0.prio} ${t0.done ? 'on' : ''}" id="ts-check" role="checkbox" aria-checked="${!!t0.done}" aria-label="done">${t0.done ? icon('check', 18) : ''}</button>
         <textarea id="ts-title" rows="1" placeholder="task name" enterkeyhint="done" aria-label="task name">${esc(t0.title)}</textarea></div>
       <textarea id="ts-notes" rows="1" placeholder="add notes…" aria-label="notes">${esc(t0.notes)}</textarea>
 
@@ -323,7 +341,7 @@ export function openTask(id) {
         <button type="button" class="chip" data-d="${todayStr()}">today</button>
         <button type="button" class="chip" data-d="${addDays(todayStr(), 1)}">tomorrow</button>
         <button type="button" class="chip" data-d="week">next week</button>
-        <span class="chip-date"><label class="chip date">${icon('calendar', 15)}<span id="ts-due-label">pick date</span><input type="date" id="ts-date" value="${t0.due || ''}" aria-label="pick a date"></label><button type="button" class="chip date-x" id="ts-nodate" aria-label="remove the date" hidden>${icon('x', 15)}</button></span>
+        <span class="chip-date"><label class="chip date">${icon('calendar', 15)}<span id="ts-due-label">pick date</span><input type="date" id="ts-date" value="${esc(t0.due || '')}" aria-label="pick a date"></label><button type="button" class="chip date-x" id="ts-nodate" aria-label="remove the date" hidden>${icon('x', 15)}</button></span>
       </div>
 
       <h2 class="lbl">list</h2>
@@ -355,7 +373,7 @@ export function openTask(id) {
         <button type="button" class="btn danger grow" id="ts-del">${icon('trash', 18)} delete task</button>
       </div>
     </div>`,
-    { onClose: () => onClose() }
+    { ariaLabel: 'task details', onClose: () => onClose() }
   );
 
   // Save anything still being typed when the sheet closes (Back gesture, backdrop tap…).
@@ -422,7 +440,7 @@ export function openTask(id) {
     if (!t) return;
     const parts = [];
     if (t.prio) parts.push(`priority: ${PRIO_LABEL[t.prio]}`);
-    if (t.repeat) parts.push(`repeat: ${t.repeat}`);
+    if (t.repeat) parts.push(`repeat: ${esc(t.repeat)}`);
     if (t.status === 'doing') parts.push('status: doing');
     if (t.est || t.pomos) parts.push(`focus: ${t.pomos}/${t.est}`);
     if (t.tags.length) parts.push(t.tags.map((x) => '#' + esc(x)).join(' '));
@@ -434,7 +452,7 @@ export function openTask(id) {
     const open = sumBtn.getAttribute('aria-expanded') !== 'true';
     sumBtn.setAttribute('aria-expanded', open);
     $('#ts-more').hidden = !open;
-    if (open) requestAnimationFrame(() => sumBtn.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+    if (open) requestAnimationFrame(() => scrollToEl(sumBtn, { block: 'start' }));
   };
 
   rec.body.addEventListener('click', (e) => {
@@ -473,7 +491,7 @@ export function openTask(id) {
   const renderSubs = () => {
     subs.innerHTML = cur()
       .sub.map(
-        (s) => `<div class="sub ${s.d ? 'done' : ''}" data-s="${s.id}">
+        (s) => `<div class="sub ${s.d ? 'done' : ''}" data-s="${esc(s.id)}">
           <button type="button" class="check sm ${s.d ? 'on' : ''}" data-sa="tog" aria-label="${s.d ? 'mark subtask as not done' : 'mark subtask as done'}">${s.d ? icon('check', 12) : ''}</button>
           <input type="text" value="${esc(s.t)}" data-sa="edit" aria-label="subtask"><button type="button" class="icon-btn" data-sa="del" aria-label="remove subtask">${icon('x', 16)}</button></div>`
       )

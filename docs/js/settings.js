@@ -1,7 +1,7 @@
 // Settings sheet: appearance, timer, toggles, data backup, about.
 import * as store from './store.js';
 import * as theme from './theme.js';
-import { openSheet, sheetHeader, closeBtn, confirmDialog, toast } from './ui.js';
+import { openSheet, sheetHeader, closeBtn, confirmDialog, toast, focusSnapshot, focusRestore } from './ui.js';
 import { esc, ymd } from './util.js';
 import { icon } from './icons.js';
 import { VERSION } from './version.js';
@@ -63,6 +63,7 @@ function html() {
       ${helpRow('press and hold a task', 'quick actions: move the date, focus, delete')}
       ${helpRow('swipe a sheet down', 'closes it (so does the back gesture)')}
       ${helpRow('tap the timer dial', 'starts or pauses the timer')}
+      ${helpRow('Shift+F10 on a task', 'quick actions from the keyboard')}
     </dl>`;
   const test = push.enabled() ? `<button class="btn ghost set-btn" data-act="testpush">Test: ring in 10 seconds</button>` : push.configured() ? '' : `<p class="set-hint">Locked-phone alarm is not set up yet.</p>`;
   const install = isStandalone() ? '' : `<button class="btn primary set-btn" data-act="install">Install app</button>`;
@@ -95,25 +96,72 @@ function draw() {
   const body = current.body;
   const scrollers = [body, body.parentElement, body.querySelector('.set-body')].filter(Boolean);
   const tops = scrollers.map((e) => e.scrollTop);
+  const snap = focusSnapshot(body); // keep keyboard focus on the same control after the redraw
   body.innerHTML = html();
   scrollers.forEach((e, i) => (e.scrollTop = tops[i]));
+  if (snap && !focusRestore(body, snap)) {
+    // e.g. a stepper that just hit its limit is now disabled: land on its partner instead
+    const k = /data-step="([^"]+)"/.exec(snap.sel)?.[1];
+    (k && body.querySelector(`[data-step="${k}"]:not(:disabled)`))?.focus({ preventScroll: true });
+  }
 }
 
 const set = (k, v) => store.mutate((st) => (st.settings[k] = v));
 
-async function doImport(file) {
+const PREIMPORT_KEY = 'tempo.v1.preimport';
+const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+
+// Read + validate a backup file. Returns { data } or { error: 'plain-language reason' }; never throws.
+async function readBackup(file) {
+  let data;
   try {
-    const data = JSON.parse(await file.text());
-    if (!data || !Array.isArray(data.tasks) || !Array.isArray(data.pages)) throw new Error('bad');
-    const ok = await confirmDialog('this replaces all current tasks, notes and stats with the backup.', { ok: 'replace my data', title: 'import backup?' });
-    if (!ok) return;
+    data = JSON.parse(await file.text());
+  } catch {
+    return { error: 'that file is not valid JSON, so it cannot be a to-do backup' };
+  }
+  if (!isObj(data) || !Array.isArray(data.tasks) || !Array.isArray(data.pages)) return { error: 'that file is not a to-do backup (no tasks or notes found in it)' };
+  if (data.sessions !== undefined && !Array.isArray(data.sessions)) return { error: 'that backup is damaged (the focus history is unreadable)' };
+  if ([...data.tasks, ...data.pages].some((x) => !isObj(x))) return { error: 'that backup is damaged (some entries are unreadable)' };
+  return { data };
+}
+
+async function doImport(file) {
+  const { data, error } = await readBackup(file);
+  if (error) return toast(error, { ms: 6000 });
+  const ok = await confirmDialog('this replaces all current tasks, notes and stats with the backup.', { ok: 'replace my data', title: 'import backup?' });
+  if (!ok) return;
+  // safety copy of what is there now: kept in this phone's storage and offered as "undo" below
+  const before = JSON.stringify(store.get());
+  try {
+    localStorage.setItem(PREIMPORT_KEY, before);
+  } catch {
+    return toast('could not make a safety copy first, so nothing was imported. export a backup, then try again.', { ms: 7000 });
+  }
+  try {
     store.replaceAll(data);
     theme.applyTheme();
-    draw();
-    toast('backup imported');
-  } catch {
-    toast('that file is not a valid to-do backup');
+    if (current && !current.closed) draw();
+  } catch (e) {
+    console.error(e);
+    try {
+      store.replaceAll(JSON.parse(before));
+    } catch {}
+    return toast('the backup could not be applied. your data was kept.', { ms: 6000 });
   }
+  toast('backup imported', {
+    action: 'undo',
+    ms: 10000,
+    onAction: () => {
+      try {
+        store.replaceAll(JSON.parse(before));
+        theme.applyTheme();
+        if (current && !current.closed) draw();
+        toast('import undone');
+      } catch {
+        toast('could not undo. the previous data is still in this browser under tempo.v1.preimport.', { ms: 8000 });
+      }
+    },
+  });
 }
 
 function doExport() {
@@ -161,8 +209,15 @@ export function openSettings() {
     else if (act === 'import') body.querySelector('[data-file]').click();
     else if (act === 'install') runInstall();
     else if (act === 'testpush') {
-      await push.schedule(Date.now() + 10000, 'to-do test', 'If you see this, locked-phone alarms work.');
-      toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
+      let r;
+      try {
+        r = await push.schedule(Date.now() + 10000, 'to-do test', 'If you see this, locked-phone alarms work.');
+      } catch (err) {
+        r = { ok: false, error: String(err?.message || err) };
+      }
+      if (r && r.ok === false) toast(`the test alarm could not be set: ${String(r.error || 'unknown error').toLowerCase()}`, { ms: 8000 });
+      else if (r?.skipped) toast('locked-phone alarms are switched off. turn on “Ring when phone is locked” first.', { ms: 6000 });
+      else toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
     }
     else if (act === 'reset') {
       const ok = await confirmDialog('all tasks, notes, sessions and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });

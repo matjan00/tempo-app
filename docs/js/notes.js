@@ -1,6 +1,6 @@
 // Notes tab: a list of Notion-like pages + a block editor (full-screen layer).
 import { icon } from './icons.js';
-import { esc, timeAgo, uid } from './util.js';
+import { esc, timeAgo, uid, debounce } from './util.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
 
@@ -97,7 +97,7 @@ const firstText = (pg) => {
 
 function rowHtml(pg) {
   const snip = firstText(pg);
-  return `<button class="notes-row" data-act="open" data-id="${pg.id}">
+  return `<button class="notes-row" data-act="open" data-id="${esc(pg.id)}">
     <span class="notes-ico">${esc(pg.icon || '📄')}</span>
     <span class="notes-main">
       <span class="notes-title">${pg.title.trim() ? esc(pg.title) : 'untitled'}</span>
@@ -124,6 +124,12 @@ function listHtml() {
   return out;
 }
 
+// typing in the search box: redraw the list once typing pauses for a moment
+const paintList = debounce((root) => {
+  const list = root.querySelector('.notes-list');
+  if (list) list.innerHTML = listHtml();
+}, 80);
+
 export function render(root) {
   const n = store.get().pages.length;
   if (!n) q = ''; // the search field only shows once there is a page to search
@@ -135,7 +141,7 @@ export function render(root) {
   root.oninput = (e) => {
     if (!e.target.matches('[data-q]')) return;
     q = e.target.value;
-    root.querySelector('.notes-list').innerHTML = listHtml();
+    paintList(root);
   };
   root.onclick = (e) => {
     const a = e.target.closest('[data-act]');
@@ -227,9 +233,9 @@ function parseMd(text) {
 
 // ---------------------------------------------------------------- editor
 export function openPage(id) {
-  const page = store.getPage(id);
+  let page = store.getPage(id);
   if (!page) return;
-  if (!page.blocks.length) page.blocks.push(b('p'));
+  if (!page.blocks.length) store.mutate(() => page.blocks.push(b('p')), true);
 
   const rec = ui.openSheet(
     `<div class="pg">
@@ -250,7 +256,7 @@ export function openPage(id) {
       <div class="pg-dock">
         <div class="pg-slash" hidden></div>
         <div class="pg-tools">
-          ${TYPES.map((t) => `<button class="pg-tool" data-t="${t.t}" aria-label="${t.label}">${t.ic ? icon(t.ic, 19) : `<b>${t.txt}</b>`}</button>`).join('')}
+          ${TYPES.map((t) => `<button class="pg-tool" data-t="${t.t}" aria-label="${t.label}" aria-pressed="false">${t.ic ? icon(t.ic, 19) : `<b>${t.txt}</b>`}</button>`).join('')}
           <span class="pg-sep"></span>
           <button class="pg-tool" data-a="up" aria-label="move block up">${icon('up', 19)}</button>
           <button class="pg-tool" data-a="down" aria-label="move block down">${icon('down', 19)}</button>
@@ -258,7 +264,7 @@ export function openPage(id) {
         </div>
       </div>
     </div>`,
-    { full: true, cls: 'pg-layer', onClose: () => cleanup() }
+    { full: true, cls: 'pg-layer', ariaLabel: 'note editor', onClose: () => cleanup() }
   );
 
   const pg = rec.body.querySelector('.pg');
@@ -271,25 +277,29 @@ export function openPage(id) {
   let cur = null; // id of the block the toolbar acts on
   let divSel = false; // a divider is the "current" block
   let slashItems = [];
+  let slashSel = 0; // highlighted slash item (arrow keys / Enter)
+  let slashFilter = '';
   let dockTimer;
 
-  const m = (fn) => store.mutate(fn, true); // silent: no re-render of the list screen
+  // `page` is re-read from the store before every change: an import / undo may have swapped the object
+  const syncPage = () => (page = store.getPage(id) || page);
+  const m = (fn) => (syncPage(), store.mutate(fn, true)); // silent: no re-render of the list screen
   const touch = () => (page.updated = Date.now());
   const idx = (bid) => page.blocks.findIndex((x) => x.id === bid);
   const blk = (bid) => page.blocks[idx(bid)];
-  const blockEl = (bid) => blocksEl.querySelector(`.blk[data-id="${bid}"]`);
+  const blockEl = (bid) => blocksEl.querySelector(`.blk[data-id="${CSS.escape(bid)}"]`);
   const txtEl = (bid) => blockEl(bid)?.querySelector('.txt') || null;
   const curTxt = () => (cur ? txtEl(cur) : null);
 
   // ---- rendering
   function blockHtml(bl, n) {
-    if (bl.type === 'divider') return `<div class="blk blk-divider" data-id="${bl.id}" data-type="divider"><hr></div>`;
+    if (bl.type === 'divider') return `<div class="blk blk-divider" data-id="${esc(bl.id)}" data-type="divider"><hr></div>`;
     let lead = '';
     if (bl.type === 'bullet') lead = '<span class="blk-mark" contenteditable="false">•</span>';
     else if (bl.type === 'num') lead = `<span class="blk-mark" contenteditable="false">${n}.</span>`;
     else if (bl.type === 'todo')
-      lead = `<button class="blk-check" data-act="check" contenteditable="false" tabindex="-1" role="checkbox" aria-checked="${!!bl.done}" aria-label="done">${icon('check', 14)}</button>`;
-    return `<div class="blk blk-${bl.type}${bl.done ? ' done' : ''}" data-id="${bl.id}" data-type="${bl.type}">${lead}<div class="txt" contenteditable="true" data-ph="${esc(PH[bl.type] || '')}" spellcheck="true">${esc(bl.text)}</div></div>`;
+      lead = `<button class="blk-check" data-act="check" contenteditable="false" tabindex="0" role="checkbox" aria-checked="${!!bl.done}" aria-label="done">${icon('check', 14)}</button>`;
+    return `<div class="blk blk-${bl.type}${bl.done ? ' done' : ''}" data-id="${esc(bl.id)}" data-type="${bl.type}">${lead}<div class="txt" contenteditable="true" data-ph="${esc(PH[bl.type] || '')}" spellcheck="true">${esc(bl.text)}</div></div>`;
   }
   function renderBlocks(focusId, off = 'end') {
     let n = 0;
@@ -330,7 +340,7 @@ export function openPage(id) {
   }
   function updateTools() {
     const t = cur && blk(cur)?.type;
-    dock.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('on', x.dataset.t === t));
+    dock.querySelectorAll('[data-t]').forEach((x) => (x.classList.toggle('on', x.dataset.t === t), x.setAttribute('aria-pressed', x.dataset.t === t)));
   }
   const scheduleDockCheck = () => {
     clearTimeout(dockTimer);
@@ -348,20 +358,34 @@ export function openPage(id) {
   vv?.addEventListener('scroll', placeDock);
 
   // ---- slash menu
+  function paintSlash() {
+    slashEl.querySelectorAll('.pg-slash-item').forEach((x, i) => {
+      x.classList.toggle('first', i === slashSel);
+      x.setAttribute('aria-selected', i === slashSel);
+      if (i === slashSel) x.scrollIntoView({ block: 'nearest' });
+    });
+  }
   function hideSlash() {
     slashItems = [];
+    slashSel = 0;
+    slashFilter = '';
     slashEl.hidden = true;
     slashEl.innerHTML = '';
   }
   function updateSlash(bl, text) {
     if (text.startsWith('/') && !/\s/.test(text)) {
       const f = text.slice(1).toLowerCase();
+      if (f !== slashFilter) slashSel = 0; // a new filter starts at the top again
+      slashFilter = f;
       slashItems = TYPES.filter((t) => !f || t.label.toLowerCase().includes(f) || t.kw.includes(f));
       if (slashItems.length) {
+        slashSel = Math.min(slashSel, slashItems.length - 1);
+        slashEl.setAttribute('role', 'listbox');
+        slashEl.setAttribute('aria-label', 'blocks');
         slashEl.innerHTML = slashItems
           .map(
             (t, i) =>
-              `<button class="pg-slash-item${i === 0 ? ' first' : ''}" data-s="${t.t}"><span class="pg-slash-ic">${t.ic ? icon(t.ic, 18) : `<b>${t.txt}</b>`}</span>${t.label}</button>`
+              `<button class="pg-slash-item${i === slashSel ? ' first' : ''}" role="option" aria-selected="${i === slashSel}" tabindex="-1" data-s="${t.t}"><span class="pg-slash-ic">${t.ic ? icon(t.ic, 18) : `<b>${t.txt}</b>`}</span>${t.label}</button>`
           )
           .join('');
         slashEl.hidden = false;
@@ -402,7 +426,7 @@ export function openPage(id) {
   }
 
   function onEnter(el) {
-    if (!slashEl.hidden && slashItems.length) return pickSlash(slashItems[0].t);
+    if (!slashEl.hidden && slashItems.length) return pickSlash((slashItems[slashSel] || slashItems[0]).t);
     const bid = el.closest('.blk').dataset.id;
     const i = idx(bid);
     const bl = page.blocks[i];
@@ -555,7 +579,11 @@ export function openPage(id) {
   }
 
   // ---- events
+  // Enter / Backspace are handled in one place: `beforeinput` where the browser has it (it also covers phone
+  // keyboards and IME); `keydown` is only the fallback for browsers without it.
+  const HAS_BEFOREINPUT = 'onbeforeinput' in document.createElement('div');
   pg.addEventListener('beforeinput', (e) => {
+    syncPage();
     const t = e.target;
     const enter = e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak';
     if (t === titleEl) {
@@ -577,8 +605,15 @@ export function openPage(id) {
 
   pg.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
+    syncPage();
+    // a to-do box is focusable: Space / Enter toggles it
+    const chk = e.target.closest?.('.blk-check');
+    if (chk && (e.key === ' ' || e.key === 'Enter')) {
+      e.preventDefault();
+      return chk.click();
+    }
     if (e.target === titleEl) {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !HAS_BEFOREINPUT) {
         e.preventDefault();
         focusFirst();
       }
@@ -586,11 +621,20 @@ export function openPage(id) {
     }
     const el = e.target.closest?.('.txt');
     if (!el) return;
-    if (e.key === 'Enter') {
+    const menuOpen = !slashEl.hidden && slashItems.length;
+    if (menuOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
-      onEnter(el);
+      slashSel = (slashSel + (e.key === 'ArrowDown' ? 1 : -1) + slashItems.length) % slashItems.length;
+      return paintSlash();
+    }
+    if (e.key === 'Enter') {
+      // with an open slash menu Enter picks the highlighted item (beforeinput sees the same Enter if we do not stop it here)
+      if (menuOpen || !HAS_BEFOREINPUT) {
+        e.preventDefault();
+        onEnter(el);
+      }
     } else if (e.key === 'Backspace') {
-      if (onBackspace(el)) e.preventDefault();
+      if (!HAS_BEFOREINPUT && onBackspace(el)) e.preventDefault();
     } else if (e.key === 'ArrowUp' && !e.shiftKey) {
       const o = selOffsets(el);
       if (o && o.start === 0 && o.end === 0 && moveFocus(el.closest('.blk').dataset.id, -1)) e.preventDefault();
@@ -605,6 +649,7 @@ export function openPage(id) {
   });
 
   pg.addEventListener('input', (e) => {
+    syncPage();
     if (e.target === titleEl) {
       const v = titleEl.value.replace(/\r?\n/g, ' ');
       if (v !== titleEl.value) {
@@ -651,12 +696,13 @@ export function openPage(id) {
   });
 
   pg.addEventListener('paste', (e) => {
+    syncPage();
     const el = e.target.closest?.('.txt');
     if (e.target === titleEl) return;
     if (!el) return;
     e.preventDefault();
     const raw = (e.clipboardData || window.clipboardData)?.getData('text/plain') || '';
-    const lines = raw.replace(/\r\n?/g, '\n').replace(/ /g, ' ').split('\n');
+    const lines = raw.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').split('\n');
     if (lines.length === 1) {
       document.execCommand('insertText', false, lines[0]);
       return;
@@ -731,6 +777,7 @@ export function openPage(id) {
   });
 
   pg.addEventListener('click', async (e) => {
+    syncPage();
     const chk = e.target.closest('.blk-check');
     if (chk) {
       const row = chk.closest('.blk');
@@ -780,7 +827,7 @@ export function openPage(id) {
 
   function emojiSheet() {
     const r = ui.openSheet(
-      `${ui.sheetHeader('Page icon', ui.closeBtn())}<div class="pg-emojis">${EMOJIS.map((x) => `<button data-e="${x}">${x}</button>`).join('')}</div>`
+      `${ui.sheetHeader('Page icon', ui.closeBtn())}<div class="pg-emojis">${EMOJIS.map((x) => `<button data-e="${esc(x)}" aria-label="icon ${esc(x)}">${x}</button>`).join('')}</div>`
     );
     r.body.addEventListener('click', (e) => {
       if (e.target.closest('[data-close]')) return r.close();
@@ -814,7 +861,7 @@ export function openPage(id) {
           icon: page.icon,
           blocks: page.blocks.map((bl) => ({ ...bl, id: uid() })),
         });
-        ui.toast('page duplicated', { action: 'open', onAction: () => (rec.close(), setTimeout(() => openPage(copy.id), 300)) });
+        ui.toast('page duplicated', { action: 'open', onAction: () => (rec.close(), rec.whenClosed.then(() => openPage(copy.id))) });
       } else {
         const pid = page.id;
         rec.close();
@@ -831,11 +878,11 @@ export function openPage(id) {
     const p = store.getPage(id);
     if (p) {
       // drop pages the user opened and never wrote anything in
-      // (any number of blank lines counts as empty; a divider or a checked box counts as content)
-      const empty = !p.title.trim() && p.blocks.every((x) => x.type !== 'divider' && !x.text.trim() && !x.done);
+      // (any number of blank lines counts as empty; a divider, a checked box, a pin or a chosen icon counts as content)
+      const empty = !p.title.trim() && !p.pinned && (p.icon || '📄') === '📄' && p.blocks.every((x) => x.type !== 'divider' && !x.text.trim() && !x.done);
       if (empty) {
-        store.deletePage(id);
-        ui.toast('empty page discarded');
+        const snap = store.deletePage(id);
+        ui.toast('empty page discarded', { action: 'undo', onAction: () => store.restorePage(snap) });
       } else store.emit();
     }
   }

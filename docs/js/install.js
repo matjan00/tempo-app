@@ -7,7 +7,8 @@ const subs = new Set();
 const notify = () => subs.forEach((f) => f());
 
 export const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+// iPadOS 13+ reports itself as a Mac, but a Mac has no touch screen
+export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 export const onInstallChange = (f) => subs.add(f);
 
 addEventListener('beforeinstallprompt', (e) => {
@@ -45,5 +46,4 @@ function showHelp() {
      <button class="btn primary" style="width:100%;margin-top:14px" data-close>Got it</button>`,
     { cls: 'small' }
   );
-  rec.body.querySelector('[data-close]').onclick = rec.close;
 }
