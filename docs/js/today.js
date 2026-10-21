@@ -15,12 +15,12 @@ const greeting = () => {
 };
 
 // One slim line instead of a ring: "2 of 5 done" + a thin segmented bar. Only shown once something is done or planned.
-function progress(done, total, mins) {
+function progress(done, total) {
   if (!total) return '';
   const segs = total <= 12
     ? `<span class="prog-bar segs" aria-hidden="true">${Array.from({ length: total }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</span>`
     : `<span class="prog-bar" aria-hidden="true"><i class="on" style="width:${((done / total) * 100).toFixed(1)}%"></i></span>`;
-  return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b>${mins ? `<span class="muted"> · ${fmtMin(mins)} focused in total</span>` : ''}</p>${segs}</div>`;
+  return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b></p>${segs}</div>`;
 }
 
 export function render(root) {
@@ -31,7 +31,6 @@ export function render(root) {
   const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
   const total = late.length + todays.length + doneToday.length;
-  const mins = st.sessions.reduce((a, s) => a + (Number(s.min) || 0), 0); // running total across all days
   const d = new Date();
   const section = (label, list, cls = '') =>
     list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t)).join('')}</section>` : '';
@@ -46,7 +45,7 @@ export function render(root) {
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button>
     </header>
     ${!isStandalone() && !bannerHidden() ? `<div class="install-banner">${icon('download', 18)}<span class="ib-t">install to-do</span><button class="btn primary" data-act="install">install</button><button class="icon-btn" data-act="hideInstall" aria-label="hide install banner">${icon('x', 18)}</button></div>` : ''}
-    ${progress(doneToday.length, total, mins)}
+    ${progress(doneToday.length, total)}
     ${section('Overdue', late, 'late')}
     ${section('Today', todays)}
     ${empty ? `<div class="empty">${icon('leaf', 34)}<p>${doneToday.length ? 'all clear. enjoy the rest of your day.' : 'nothing planned for today.'}</p><small>${unplanned.length ? 'add a task below, or plan one of your unplanned tasks.' : 'type a task in the bar below. words like “tomorrow” or “#gym” are picked up automatically.'}</small></div>` : ''}
