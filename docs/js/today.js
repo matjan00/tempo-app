@@ -1,5 +1,5 @@
 import * as store from './store.js';
-import { taskRow, handleTaskClick, composer, bindComposer, prioMark, openTask } from './components.js';
+import { taskRow, handleTaskClick, composer, bindComposer } from './components.js';
 import { openSettings } from './settings.js';
 import { icon } from './icons.js';
 import { install, isStandalone } from './install.js';
@@ -23,22 +23,6 @@ function progress(done, total, mins) {
   return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b>${mins ? `<span class="muted"> · ${fmtMin(mins)} focused in total</span>` : ''}</p>${segs}</div>`;
 }
 
-// The task to do next: overdue or due today, highest priority first, then the earliest date.
-function nextUp(list) {
-  return [...list].sort((a, b) => b.prio - a.prio || (a.due < b.due ? -1 : a.due > b.due ? 1 : 0) || a.created - b.created)[0] || null;
-}
-
-function nextCard(t) {
-  const focus = t.est ? `${t.pomos} of ${t.est} focus sessions done` : t.pomos ? `${t.pomos} focus session${t.pomos === 1 ? '' : 's'} done` : 'no focus sessions planned';
-  const spent = t.focusMin ? ` · ${fmtMin(t.focusMin)} spent` : '';
-  const late = t.due < todayStr();
-  return `<section class="next card" data-id="${t.id}" aria-labelledby="next-h">
-    <h2 class="next-h" id="next-h">next up</h2>
-    <button type="button" class="next-t" data-act="openNext">${t.title.trim() ? esc(t.title) : '<span class="muted">untitled</span>'}</button>
-    <p class="next-m">${prioMark(t.prio)}${late ? `<span class="m late">${icon('calendar', 13)}${fmtDate(t.due)}</span>` : ''}<span class="m">${icon('timer', 13)}${focus}${spent}</span></p>
-  </section>`;
-}
-
 export function render(root) {
   const st = store.get();
   const today = todayStr();
@@ -55,7 +39,6 @@ export function render(root) {
   // "unplanned": open tasks without a date
   const unplanned = open.filter((t) => !t.due).slice(0, 3);
   const empty = !late.length && !todays.length;
-  const next = nextUp([...late, ...todays]);
 
   root.innerHTML = `
     <header class="top">
@@ -63,7 +46,6 @@ export function render(root) {
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button>
     </header>
     ${!isStandalone() && !bannerHidden() ? `<div class="install-banner">${icon('download', 18)}<span class="ib-t">install to-do</span><button class="btn primary" data-act="install">install</button><button class="icon-btn" data-act="hideInstall" aria-label="hide install banner">${icon('x', 18)}</button></div>` : ''}
-    ${next ? nextCard(next) : ''}
     ${progress(doneToday.length, total, mins)}
     ${section('Overdue', late, 'late')}
     ${section('Today', todays)}
@@ -81,7 +63,6 @@ export function render(root) {
     if (a === 'install') install();
     if (a === 'hideInstall') { try { localStorage.setItem('tempo.hideInstall', '1'); } catch {} render(root); }
     if (a === 'toggleDone') (showDone = !showDone), render(root);
-    if (a === 'openNext') openTask(e.target.closest('.next').dataset.id);
     if (a === 'plan') {
       const id = e.target.closest('.pull').dataset.id;
       store.updateTask(id, { due: today });

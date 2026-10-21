@@ -12,7 +12,7 @@
   --r: 0px;
   --radius: 0px;
   --shadow: var(--hard);
-  --font: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, 'Roboto Mono', monospace;
+  --font: system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --ok: #111111;
 }
 :root[data-theme='dark'] {
@@ -30,7 +30,7 @@
 }
 
 html, body, button, input, textarea, select { font-family: var(--font); }
-body { text-transform: lowercase; letter-spacing: -0.01em; }
+body { text-transform: none; letter-spacing: 0; }
 button { text-transform: inherit; }
 h1, h2, h3 { font-weight: 700; }
 
@@ -38,11 +38,11 @@ h1, h2, h3 { font-weight: 700; }
 .t-title, .tp-t, .pick-t, .notes-title, .notes-snip, .pg-title, .txt, .blk-p, .blk-h1, .blk-h2, .blk-bullet, .blk-num, .blk-todo, .blk-quote,
 .pg-emoji, .stat-pname, .qa-sheet-t, .keep { text-transform: none; }
 /* …but the app's own fallbacks inside those ("untitled") stay lowercase */
-.t-title .muted { text-transform: lowercase; }
+.t-title .muted { text-transform: none; }
 
 /* headings & labels */
 .top h1 { font-size: 32px; letter-spacing: -0.04em; }
-.eyebrow, .sec h2, .tp-l, .lbl, .set-h, .notes-sec, .state { text-transform: lowercase; letter-spacing: 0.04em; color: var(--muted); }
+.eyebrow, .sec h2, .tp-l, .lbl, .set-h, .notes-sec, .state { text-transform: none; letter-spacing: 0.04em; color: var(--muted); }
 .sec h2 span { background: var(--text); color: var(--bg); border-radius: 0; font-weight: 700; }
 
 /* outlined surfaces with a hard shadow */
@@ -300,16 +300,11 @@ body.zen .task-pick { border-color: transparent; background: none; box-shadow: n
 
 /* section headings that open / close ("done today", "completed") */
 .sec h2.hbtn { display: block; margin: 0 0 6px; }
-.h3btn { justify-content: flex-start; gap: 8px; padding-left: 2px; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: lowercase; }
+.h3btn { justify-content: flex-start; gap: 8px; padding-left: 2px; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: none; }
 .h3btn > span { background: var(--text); color: var(--bg); padding: 0 8px; font-size: 13px; letter-spacing: 0; line-height: 19px; font-weight: 700; }
 .h3btn > .ic { margin-left: auto; }
 
 /* today: "next up" card, one-line progress, slim install bar */
-.next { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; margin-bottom: 18px; }
-.next-h { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
-.next-t { display: block; width: 100%; min-height: 44px; text-align: left; text-transform: none; font-size: 21px; font-weight: 700; line-height: 1.25; letter-spacing: -0.02em; word-break: break-word; }
-.next-t .muted { text-transform: lowercase; }
-.next-m { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .prog { margin: 0 0 20px; }
 .prog-t { font-size: 14px; margin: 0 0 6px 2px; }
 .prog-bar { display: flex; gap: 3px; height: 10px; }
@@ -420,7 +415,7 @@ body.zen .focus-top .modes, body.zen .focus .top [data-act=settings] { display: 
 .dot { width: 9px; height: 9px; border-radius: 0; flex: none; }
 .dot.work { background: var(--text); }
 .dot.personal { background: transparent; border: 2px solid var(--text); }
-.m.area { text-transform: lowercase; }
+.m.area { text-transform: none; }
 .qa-area { display: inline-flex; margin: 0 0 6px 2px; border: 2px solid var(--text); background: var(--surface); box-shadow: 2px 2px 0 var(--text); }
 .qa-area button { padding: 6px 14px; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--text); background: transparent; }
 .qa-area button.on { background: var(--text); color: var(--bg); }
