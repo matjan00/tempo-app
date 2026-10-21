@@ -7,7 +7,6 @@ import * as today from './today.js';
 import * as tasks from './tasks.js';
 import * as focus from './focus.js';
 import * as notes from './notes.js';
-import * as stats from './stats.js';
 import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
 import { bindLongPress } from './components.js';
 
@@ -16,7 +15,6 @@ const TABS = [
   ['tasks', 'Tasks', 'tasks', tasks],
   ['focus', 'Focus', 'timer', focus],
   ['notes', 'Notes', 'notes', notes],
-  ['stats', 'Stats', 'stats', stats],
 ];
 
 const root = document.getElementById('screen');
@@ -68,6 +66,8 @@ function render() {
     }
   }
   if (snap) focusRestore(root, snap);
+  drawNav(); // self-heals if the bar's buttons were ever lost
+  syncTyping(); // the focused quick-add input may have been replaced by this render
 }
 
 // Each tab remembers where it was scrolled to (for this session), so switching tabs doesn't lose your place.
@@ -103,8 +103,21 @@ document.addEventListener('tempo:focus-task', (e) => {
 });
 
 // Hide the tab bar while typing in the quick-add bar so the keyboard has room.
-document.addEventListener('focusin', (e) => e.target.classList?.contains('qa-input') && document.body.classList.add('typing'));
-document.addEventListener('focusout', (e) => e.target.classList?.contains('qa-input') && setTimeout(() => !document.activeElement?.classList?.contains('qa-input') && document.body.classList.remove('typing'), 50));
+// The class is derived from what is actually focused (never toggled blindly), because a focused input that gets
+// removed by a re-render / tab switch fires no focusout, which used to leave the nav hidden for good.
+function syncTyping() {
+  const a = document.activeElement;
+  const on = !!(a && a.isConnected && a.classList?.contains('qa-input') && document.hasFocus());
+  document.body.classList.toggle('typing', on);
+}
+document.addEventListener('focusin', syncTyping);
+document.addEventListener('focusout', () => setTimeout(syncTyping, 50));
+window.addEventListener('blur', syncTyping);
+window.addEventListener('pageshow', syncTyping);
+window.addEventListener('resize', syncTyping);
+window.visualViewport?.addEventListener('resize', syncTyping);
+document.addEventListener('visibilitychange', syncTyping);
+document.addEventListener('pointerdown', () => setTimeout(syncTyping, 0), true);
 
 onInstallChange(() => store.emit());
 

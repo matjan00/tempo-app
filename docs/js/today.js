@@ -36,7 +36,6 @@ function nextCard(t) {
     <h2 class="next-h" id="next-h">next up</h2>
     <button type="button" class="next-t" data-act="openNext">${t.title.trim() ? esc(t.title) : '<span class="muted">untitled</span>'}</button>
     <p class="next-m">${prioMark(t.prio)}${late ? `<span class="m late">${icon('calendar', 13)}${fmtDate(t.due)}</span>` : ''}<span class="m">${icon('timer', 13)}${focus}${spent}</span></p>
-    <button type="button" class="btn primary next-go" data-act="startNext">${icon('play', 16)} start focus</button>
   </section>`;
 }
 
@@ -82,7 +81,6 @@ export function render(root) {
     if (a === 'install') install();
     if (a === 'hideInstall') { try { localStorage.setItem('tempo.hideInstall', '1'); } catch {} render(root); }
     if (a === 'toggleDone') (showDone = !showDone), render(root);
-    if (a === 'startNext') document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: e.target.closest('.next').dataset.id }));
     if (a === 'openNext') openTask(e.target.closest('.next').dataset.id);
     if (a === 'plan') {
       const id = e.target.closest('.pull').dataset.id;

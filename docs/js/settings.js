@@ -128,7 +128,7 @@ async function readBackup(file) {
 async function doImport(file) {
   const { data, error } = await readBackup(file);
   if (error) return toast(error, { ms: 6000 });
-  const ok = await confirmDialog('this replaces all current tasks, notes and stats with the backup.', { ok: 'replace my data', title: 'import backup?' });
+  const ok = await confirmDialog('this replaces all current tasks and notes with the backup.', { ok: 'replace my data', title: 'import backup?' });
   if (!ok) return;
   // safety copy of what is there now: kept in this phone's storage and offered as "undo" below
   const before = JSON.stringify(store.get());
