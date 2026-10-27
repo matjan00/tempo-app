@@ -1,0 +1,11 @@
+/* ---------- habits ---------- */
+.hb-card { margin: 0 0 18px; padding: 4px 14px 14px; border: 2px solid var(--text); background: var(--surface); box-shadow: var(--hard); }
+.hb-card .task { border-bottom: 0; padding-left: 0; padding-right: 0; }
+/* WEEKS columns × 7 rows (Monday on top), filled week by week */
+.hb-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 4px; }
+.hb-grid i { aspect-ratio: 1; border: 2px solid var(--text); background: var(--surface); }
+.hb-grid i.on { background: var(--text); }
+.hb-grid i.before, .hb-grid i.future { border-color: var(--soft); border-style: dashed; }
+.hb-grid i.now { outline: 2px solid var(--accent-text, var(--text)); outline-offset: 1px; }
+.hb-info { margin: 12px 0 18px; color: var(--muted); }
+.task.habit .t-main { cursor: pointer; }

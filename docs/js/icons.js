@@ -6,6 +6,7 @@ const P = {
   tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="m8.2 12.2 2.7 2.7 5-5.6"/>',
   timer: '<circle cx="12" cy="13.2" r="7.8"/><path d="M12 9.2v4.3l2.4 1.6M9.5 2.8h5"/>',
   notes: '<path d="M14.2 3H7.5A2.5 2.5 0 0 0 5 5.5v13A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V7.8z"/><path d="M14 3v4.6a.4.4 0 0 0 .4.4H19M9 13h6M9 16.8h4"/>',
+  habits: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1" fill="currentColor"/><rect x="4" y="14" width="6" height="6" rx="1" fill="currentColor"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
   stats: '<path d="M5 20v-8M12 20V4M19 20v-5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',

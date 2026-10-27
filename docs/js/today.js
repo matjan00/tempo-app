@@ -4,6 +4,7 @@ import { openSettings } from './settings.js';
 import { icon } from './icons.js';
 import { install, isStandalone } from './install.js';
 import { toast } from './ui.js';
+import { habitRow, handleHabitClick } from './habits.js';
 import { todayStr, DAYS, MONTHS, fmtMin, fmtDate, esc } from './util.js';
 
 let showDone = false;
@@ -30,14 +31,16 @@ export function render(root) {
   const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
-  const total = late.length + todays.length + doneToday.length;
+  const habits = st.habits;
+  const habitsDone = habits.filter((h) => h.log[today]).length;
+  const total = late.length + todays.length + doneToday.length + habits.length;
   const d = new Date();
   const section = (label, list, cls = '') =>
     list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t)).join('')}</section>` : '';
 
   // "unplanned": open tasks without a date
   const unplanned = open.filter((t) => !t.due).slice(0, 3);
-  const empty = !late.length && !todays.length;
+  const empty = !late.length && !todays.length && !habits.length;
 
   root.innerHTML = `
     <header class="top">
@@ -45,8 +48,9 @@ export function render(root) {
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button>
     </header>
     ${!isStandalone() && !bannerHidden() ? `<div class="install-banner">${icon('download', 18)}<span class="ib-t">install to-do</span><button class="btn primary" data-act="install">install</button><button class="icon-btn" data-act="hideInstall" aria-label="hide install banner">${icon('x', 18)}</button></div>` : ''}
-    ${progress(doneToday.length, total)}
+    ${progress(doneToday.length + habitsDone, total)}
     ${section('Overdue', late, 'late')}
+    ${habits.length ? `<section class="sec"><h2>Habits<span>${habitsDone}/${habits.length}</span></h2>${habits.map((h) => habitRow(h, today)).join('')}</section>` : ''}
     ${section('Today', todays)}
     ${empty ? `<div class="empty">${icon('leaf', 34)}<p>${doneToday.length ? 'all clear. enjoy the rest of your day.' : 'nothing planned for today.'}</p><small>${unplanned.length ? 'add a task below, or plan one of your unplanned tasks.' : 'type a task in the bar below. words like “tomorrow” or “#gym” are picked up automatically.'}</small></div>` : ''}
     ${empty && unplanned.length ? `<section class="sec"><h2>unplanned tasks</h2>${unplanned.map((t) => `<div class="pull" data-id="${t.id}">${taskRow(t)}<button class="chip" data-act="plan" aria-label="do today: ${esc(t.title)}">do today</button></div>`).join('')}</section>` : ''}
@@ -56,6 +60,7 @@ export function render(root) {
 
   bindComposer(root, () => ({ due: today }));
   root.onclick = (e) => {
+    if (handleHabitClick(e)) return;
     if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'settings') openSettings();

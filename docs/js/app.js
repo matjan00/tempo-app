@@ -5,6 +5,7 @@ import { icon } from './icons.js';
 import { onInstallChange } from './install.js';
 import * as today from './today.js';
 import * as tasks from './tasks.js';
+import * as habits from './habits.js';
 import * as focus from './focus.js';
 import * as notes from './notes.js';
 import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
@@ -13,6 +14,7 @@ import { bindLongPress } from './components.js';
 const TABS = [
   ['today', 'Today', 'sun', today],
   ['tasks', 'Tasks', 'tasks', tasks],
+  ['habits', 'Habits', 'habits', habits],
   ['focus', 'Focus', 'timer', focus],
   ['notes', 'Notes', 'notes', notes],
 ];

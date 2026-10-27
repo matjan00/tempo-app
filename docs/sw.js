@@ -1,8 +1,8 @@
 // Offline cache. Bump VERSION (scripts/release.cjs does it) so phones replace their saved copy.
-const VERSION = 'tempo-v19';
+const VERSION = 'tempo-v20';
 // FILES-START
-// HASH: a06bec9418fb
-const FILES = ["./","css/app.css","css/ink.css","css/notes.css","css/settings.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/focus.js","js/icons.js","js/install.js","js/notes.js","js/parse.js","js/push-config.js","js/push.js","js/settings.js","js/store.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
+// HASH: 7508a126c2a0
+const FILES = ["./","css/app.css","css/habits.css","css/ink.css","css/notes.css","css/settings.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/focus.js","js/habits.js","js/icons.js","js/install.js","js/notes.js","js/parse.js","js/push-config.js","js/push.js","js/settings.js","js/store.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
 // FILES-END
 
 self.addEventListener('install', (e) => {

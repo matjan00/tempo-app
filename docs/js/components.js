@@ -7,7 +7,7 @@ import { esc, fmtDate, todayStr, addDays, parseYmd, haptic, uid } from './util.j
 
 export const PRIO_LABEL = ['none', 'low', 'medium', 'high'];
 const PRIO_GLYPH = ['', '!', '!!', '!!!'];
-const REPEATS = [[null, 'never'], ['daily', 'daily'], ['weekdays', 'weekdays'], ['weekly', 'weekly'], ['monthly', 'monthly']];
+const REPEATS = [[null, 'never'], ['weekdays', 'weekdays'], ['weekly', 'weekly'], ['monthly', 'monthly']];
 
 // every task is either "personal" or "work" (no projects, no inbox)
 export const AREAS = ['personal', 'work'];
@@ -291,6 +291,12 @@ export function bindComposer(root, getDefaults = () => ({})) {
     picked = dateIn.value = '';
     show();
     haptic(8);
+    if (r.repeat === 'daily') {
+      // "every day" means a habit: it shows up on Today each day and is tracked in the Habits tab
+      store.addHabit(r.title);
+      root.querySelector('[data-keep=qa]')?.focus();
+      return toast('added as a daily habit');
+    }
     const t = store.addTask({
       title: r.title,
       due: r.due || pickedDue || d.due || null,

@@ -55,7 +55,8 @@ function html() {
       ${helpRow('#gym', 'adds a tag')}
       ${helpRow('@work', 'marks it as work (default is personal)')}
       ${helpRow('*2', 'plans 2 focus sessions')}
-      ${helpRow('every week, daily', 'makes it repeat')}
+      ${helpRow('every week', 'makes it repeat')}
+      ${helpRow('every day', 'makes it a daily habit')}
     </dl>
     <p class="set-hint">tap a word in the preview above the bar to keep it as plain text.</p>
     <h4 class="help-h">gestures</h4>

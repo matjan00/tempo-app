@@ -30,6 +30,7 @@ const fresh = () => ({
   v: SCHEMA,
   rev: 0,
   tasks: [],
+  habits: [],
   pages: [],
   sessions: [],
   settings: { ...DEFAULT_SETTINGS },
@@ -96,8 +97,17 @@ function migrate(s) {
     return p && /work|prac|job|office/i.test(String(p.name)) ? 'work' : 'personal';
   };
   delete out.projects;
-  for (const k of ['tasks', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
-  const taskIds = new Set(), pageIds = new Set();
+  for (const k of ['tasks', 'habits', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
+  const taskIds = new Set(), pageIds = new Set(), habitIds = new Set();
+  // open daily tasks are habits now: they come back every day instead of piling up as overdue
+  const dailies = out.tasks.filter((t) => t.repeat === 'daily' && t.done !== true);
+  out.tasks = out.tasks.filter((t) => !dailies.includes(t));
+  out.habits.push(...dailies.map((t) => ({ title: t.title, created: t.created })));
+  out.habits = out.habits.map((h) => {
+    const log = {};
+    if (isObj(h.log)) for (const k in h.log) if (YMD.test(k) && h.log[k]) log[k] = true;
+    return { id: cleanId(h.id, habitIds), title: String(h.title ?? ''), created: num(h.created, Date.now()), log };
+  });
   out.tasks = out.tasks.map((t) => {
     const n = { ...newTask(), ...t, id: cleanId(t.id, taskIds) };
     n.title = String(n.title ?? '');
@@ -393,6 +403,64 @@ export function restoreTask(snap) {
   });
 }
 
+// ---------- habits ----------
+// A habit has no due date: it is simply "done" or "not done" for each calendar day. `log` holds the days it was done.
+export const getHabit = (id) => state.habits.find((h) => h.id === id);
+
+export function addHabit(title) {
+  const h = { id: uid(), title: String(title).trim(), created: Date.now(), log: {} };
+  mutate((s) => s.habits.push(h));
+  return h;
+}
+
+export function updateHabit(id, patch) {
+  mutate((s) => {
+    const h = s.habits.find((x) => x.id === id);
+    if (h) Object.assign(h, patch);
+  });
+}
+
+export function toggleHabit(id, day = todayStr()) {
+  mutate((s) => {
+    const h = s.habits.find((x) => x.id === id);
+    if (!h) return;
+    if (h.log[day]) delete h.log[day];
+    else h.log[day] = true;
+  });
+}
+
+export function deleteHabit(id) {
+  let snap = null;
+  mutate((s) => {
+    const i = s.habits.findIndex((h) => h.id === id);
+    if (i < 0) return;
+    snap = { habit: s.habits[i], index: i };
+    s.habits.splice(i, 1);
+  });
+  return snap;
+}
+export function restoreHabit(snap) {
+  if (!snap) return;
+  mutate((s) => {
+    if (s.habits.some((h) => h.id === snap.habit.id)) return;
+    s.habits.splice(Math.min(snap.index, s.habits.length), 0, snap.habit);
+  });
+}
+
+// Days in a row, counted back from today (or from yesterday while today is still open), plus the best run ever.
+export function habitStreak(h, today = todayStr()) {
+  let cur = 0;
+  let d = h.log[today] ? today : addDays(today, -1);
+  while (h.log[d]) (cur++, (d = addDays(d, -1)));
+  let best = 0, run = 0, prev = null;
+  for (const k of Object.keys(h.log).sort()) {
+    run = prev && addDays(prev, 1) === k ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return { cur, best };
+}
+
 // ---------- pages ----------
 export const newBlock = (type = 'p', text = '') => ({ id: uid(), type, text, done: false });
 
@@ -430,6 +498,7 @@ function seed(s) {
     newTask({ title: 'Plan the week', due: addDays(t, 1), area: 'work', repeat: 'weekly' }),
     newTask({ title: 'Choose work or personal for every task (below the bar, or @work)', area: 'work' })
   );
+  s.habits.push({ id: uid(), title: 'Drink a glass of water', created: Date.now(), log: {} });
   const b = newBlock;
   s.pages.push({
     id: uid(),
