@@ -413,11 +413,11 @@ export function addHabit(title) {
   return h;
 }
 
-export function updateHabit(id, patch) {
+export function updateHabit(id, patch, silent = false) {
   mutate((s) => {
     const h = s.habits.find((x) => x.id === id);
     if (h) Object.assign(h, patch);
-  });
+  }, silent);
 }
 
 export function toggleHabit(id, day = todayStr()) {

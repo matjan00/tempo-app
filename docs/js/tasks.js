@@ -85,6 +85,16 @@ export function render(root) {
     };
     s.addEventListener('input', (e) => !e.isComposing && update());
     s.addEventListener('compositionend', update);
+    // Escape: clear the query first, then close the search field
+    s.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (s.value) s.value = '';
+      else searching = false;
+      search = '';
+      render(root);
+      if (!searching) root.querySelector('[data-act=search]')?.focus();
+    });
     if (!search && searching) setTimeout(() => s.focus(), 0);
   }
 

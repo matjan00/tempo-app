@@ -17,7 +17,6 @@ const STEPPERS = [
   { k: 'short', label: 'Short break', min: 1, max: 30, step: 1, unit: 'min' },
   { k: 'long', label: 'Long break', min: 5, max: 60, step: 5, unit: 'min' },
   { k: 'every', label: 'Long break after', min: 2, max: 8, step: 1, unit: 'sessions' },
-  { k: 'goal', label: 'Daily goal', min: 1, max: 16, step: 1, unit: 'sessions' },
 ];
 
 const TOGGLES = [
@@ -81,7 +80,7 @@ function html() {
       <div class="set-btns"><button class="btn ghost set-btn" data-act="export">Export backup</button><button class="btn ghost set-btn" data-act="import">Import backup</button></div>
       <input type="file" accept="application/json,.json" hidden data-file>
       <div class="set-danger">
-        <p class="set-hint">erases every task, note and stat on this phone.</p>
+        <p class="set-hint">erases every task, habit, note and setting on this phone.</p>
         <button class="btn danger set-btn" data-act="reset">${icon('trash', 18)} reset everything</button>
       </div>
     </div>
@@ -221,7 +220,7 @@ export function openSettings() {
       else toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
     }
     else if (act === 'reset') {
-      const ok = await confirmDialog('all tasks, notes, sessions and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
+      const ok = await confirmDialog('all tasks, habits, notes and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
       if (ok) {
         store.resetAll(); // stops the app from saving the old data back while it reloads
         location.reload();

@@ -439,3 +439,27 @@ body.zen .focus-top .modes, body.zen .focus .top [data-act=settings] { display: 
 @media (max-width: 359px) {
   .stat-months span { font-size: 10px; letter-spacing: -0.02em; }
 }
+
+/* ======================================================================
+   usability pass
+   ====================================================================== */
+
+/* quick-add bar: a solid backdrop, so list rows scrolling underneath never show through between the bar and the tab bar */
+.composer::before { content: ''; position: absolute; z-index: -1; inset: -20px -12px -10px; background: linear-gradient(to bottom, transparent, var(--bg) 20px); pointer-events: none; }
+
+/* wide screens: the quick-add bar and the filter chips line up with the 600px content column */
+#screen > .composer { max-width: 600px; }
+@media (min-width: 680px) {
+  #screen > .chips.scroll { max-width: 606px; margin-left: auto; margin-right: auto; }
+}
+
+/* habit sheet: the last 7 days, tap one to tick a day you forgot */
+.hb-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin: 0 0 6px; }
+.hb-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 52px; border: 2px solid var(--text); background: var(--surface); color: var(--text); line-height: 1.15; }
+.hb-day span { font-size: 12px; font-weight: 600; color: var(--muted); }
+.hb-day b { font-size: 16px; font-weight: 700; }
+.hb-day.on { background: var(--text); color: var(--bg); }
+.hb-day.on span { color: var(--bg); }
+.hb-day.now { outline: 2px solid var(--accent-text, var(--text)); outline-offset: 1px; }
+.hb-day:active { transform: translate(1px, 1px); }
+.hb-info { margin: 12px 0 22px; }

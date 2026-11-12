@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 import { install, isStandalone } from './install.js';
 import { toast } from './ui.js';
 import { habitRow, handleHabitClick } from './habits.js';
-import { todayStr, DAYS, MONTHS, fmtMin, fmtDate, esc } from './util.js';
+import { todayStr, DAYS, MONTHS, esc } from './util.js';
 
 let showDone = false;
 const bannerHidden = () => { try { return localStorage.getItem('tempo.hideInstall') === '1'; } catch { return false; } };
@@ -35,8 +35,8 @@ export function render(root) {
   const habitsDone = habits.filter((h) => h.log[today]).length;
   const total = late.length + todays.length + doneToday.length + habits.length;
   const d = new Date();
-  const section = (label, list, cls = '') =>
-    list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t)).join('')}</section>` : '';
+  const section = (label, list, cls = '', opts = {}) =>
+    list.length ? `<section class="sec ${cls}"><h2>${label}<span>${list.length}</span></h2>${list.map((t) => taskRow(t, opts)).join('')}</section>` : '';
 
   // "unplanned": open tasks without a date
   const unplanned = open.filter((t) => !t.due).slice(0, 3);
@@ -51,7 +51,7 @@ export function render(root) {
     ${progress(doneToday.length + habitsDone, total)}
     ${section('Overdue', late, 'late')}
     ${habits.length ? `<section class="sec"><h2>Habits<span>${habitsDone}/${habits.length}</span></h2>${habits.map((h) => habitRow(h, today)).join('')}</section>` : ''}
-    ${section('Today', todays)}
+    ${section('Today', todays, '', { showDue: false }) /* the heading already says "today" */}
     ${empty ? `<div class="empty">${icon('leaf', 34)}<p>${doneToday.length ? 'all clear. enjoy the rest of your day.' : 'nothing planned for today.'}</p><small>${unplanned.length ? 'add a task below, or plan one of your unplanned tasks.' : 'type a task in the bar below. words like “tomorrow” or “#gym” are picked up automatically.'}</small></div>` : ''}
     ${empty && unplanned.length ? `<section class="sec"><h2>unplanned tasks</h2>${unplanned.map((t) => `<div class="pull" data-id="${t.id}">${taskRow(t)}<button class="chip" data-act="plan" aria-label="do today: ${esc(t.title)}">do today</button></div>`).join('')}</section>` : ''}
     ${doneToday.length ? `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Done today<span>${doneToday.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? doneToday.map((t) => taskRow(t)).join('') : ''}</section>` : ''}

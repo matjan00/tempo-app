@@ -25,8 +25,9 @@ export function toggleHabit(id, row = null) {
     row.classList.toggle('done', done);
     row.querySelector('.check')?.classList.toggle('pop', done);
   }
-  store.toggleHabit(id);
-  if (done) toast('habit done', { action: 'undo', onAction: () => store.toggleHabit(id) });
+  const day = todayStr(); // "undo" takes back this very day, even if midnight passes while the toast is up
+  store.toggleHabit(id, day);
+  if (done) toast('habit done', { action: 'undo', onAction: () => store.getHabit(id)?.log[day] && store.toggleHabit(id, day) });
 }
 
 // Shared click handling for habit rows (Today and Habits). Returns true if it handled the event.
@@ -42,26 +43,60 @@ export function handleHabitClick(e) {
 export function openHabit(id) {
   const h = store.getHabit(id);
   if (!h) return;
-  const { cur, best } = store.habitStreak(h);
+  const origTitle = h.title;
   const rec = openSheet(
     `<div class="ts">
       <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back">${icon('chevL', 18)} back</button></div>
       <h2 class="lbl">habit</h2>
       <div class="ts-head"><textarea id="hb-title" rows="1" placeholder="habit name" enterkeyhint="done" aria-label="habit name" maxlength="300">${esc(h.title)}</textarea></div>
-      <p class="hb-info">${cur} day streak · best ${best} · done ${Object.keys(h.log).length} times</p>
+      <h2 class="lbl">last 7 days <span class="muted">tap a day to change it</span></h2>
+      <div class="hb-week" id="hb-week" role="group" aria-label="last 7 days"></div>
+      <p class="hb-info" id="hb-info"></p>
       <button type="button" class="btn danger" id="hb-del">${icon('trash', 16)} delete habit</button>
     </div>`,
-    { ariaLabel: 'habit' }
+    {
+      ariaLabel: 'habit',
+      // the name is saved while typing; an emptied name goes back to what it was (a habit is never nameless)
+      onClose: () => {
+        const cur = store.getHabit(id);
+        if (cur && !cur.title.trim()) store.updateHabit(id, { title: origTitle.trim() ? origTitle : 'untitled' }, true);
+        store.emit();
+      },
+    }
   );
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  // the parts that change when a day is ticked: the 7 day buttons and the streak line
+  const paint = () => {
+    const cur = store.getHabit(id);
+    if (!cur) return;
+    const today = todayStr();
+    rec.body.querySelector('#hb-week').innerHTML = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6))
+      .map((day) => {
+        const d = parseYmd(day);
+        const on = !!cur.log[day];
+        return `<button type="button" class="hb-day${on ? ' on' : ''}${day === today ? ' now' : ''}" data-day="${day}" aria-pressed="${on}" aria-label="${day === today ? 'today' : `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`}"><span aria-hidden="true">${DAYS[d.getDay()].slice(0, 2)}</span><b aria-hidden="true">${d.getDate()}</b></button>`;
+      })
+      .join('');
+    const { cur: streak, best } = store.habitStreak(cur, today);
+    rec.body.querySelector('#hb-info').textContent = `${streak} day streak · best ${best} · done ${plural(Object.keys(cur.log).length, 'time')}`;
+  };
+  paint();
+  rec.body.querySelector('#hb-week').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-day]');
+    if (!b) return;
+    const day = b.dataset.day;
+    haptic();
+    store.toggleHabit(id, day);
+    paint();
+    rec.body.querySelector(`[data-day="${day}"]`)?.focus({ preventScroll: true }); // the buttons were redrawn
+  });
   const ta = rec.body.querySelector('#hb-title');
   const fit = () => ((ta.style.height = 'auto'), (ta.style.height = ta.scrollHeight + 'px'));
   fit();
-  ta.addEventListener('input', fit);
+  requestAnimationFrame(fit);
+  // saved on every keystroke (silently), so closing the sheet with Back / a swipe never loses the new name
+  ta.addEventListener('input', () => (fit(), store.updateHabit(id, { title: ta.value }, true)));
   ta.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), ta.blur()));
-  ta.addEventListener('change', () => {
-    const t = ta.value.trim();
-    if (t) store.updateHabit(id, { title: t });
-  });
   rec.body.querySelector('#hb-del').addEventListener('click', () => {
     rec.close();
     const snap = store.deleteHabit(id);

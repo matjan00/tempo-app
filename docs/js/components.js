@@ -22,11 +22,11 @@ export const prioMark = (p) =>
   p ? `<span class="m prio" title="${PRIO_LABEL[p]} priority"><span aria-hidden="true">${PRIO_GLYPH[p]}</span><span class="sr">${PRIO_LABEL[p]} priority</span></span>` : '';
 
 // ---------- task row ----------
-export function taskRow(t, { showArea = true } = {}) {
+export function taskRow(t, { showArea = true, showDue = true } = {}) {
   const today = todayStr();
   const meta = [];
   if (t.prio) meta.push(prioMark(t.prio));
-  if (t.due) {
+  if (t.due && showDue) {
     const cls = !t.done && t.due < today ? 'late' : t.due === today ? 'today' : '';
     meta.push(`<span class="m ${cls}">${icon('calendar', 13)}${fmtDate(t.due)}</span>`);
   }

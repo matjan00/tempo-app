@@ -175,6 +175,9 @@ export function start() {
     if (!t.startedAt) {
       t.startedAt = Date.now();
       t.len = s.settings[t.mode];
+      // a fresh session never starts on a task that is already done or gone
+      const task = s.tasks.find((x) => x.id === t.taskId);
+      if (!task || task.done) t.taskId = null;
     }
   });
   sync();
@@ -258,6 +261,8 @@ function advance(completed, endedAt) {
             task.pomos += 1;
             task.focusMin += min;
           }
+          // the task was finished (or deleted) meanwhile: the next session should not keep counting towards it
+          if (!task || task.done) t.taskId = null;
           if (t.cycle >= s.settings.every) t.cycle = 0; // previous round's long break was skipped by hand
           t.cycle += 1;
         }
