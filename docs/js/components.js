@@ -6,20 +6,20 @@ import { icon } from './icons.js';
 import { esc, fmtDate, todayStr, addDays, parseYmd, haptic, uid } from './util.js';
 
 export const PRIO_LABEL = ['none', 'low', 'medium', 'high'];
-const PRIO_GLYPH = ['', '!', '!!', '!!!'];
 const REPEATS = [[null, 'never'], ['weekdays', 'weekdays'], ['weekly', 'weekly'], ['monthly', 'monthly']];
 
 // every task is either "personal" or "work" (no projects, no inbox)
 export const AREAS = ['personal', 'work'];
-export const areaMark = (a) => `<span class="m area"><i class="dot ${a === 'work' ? 'work' : 'personal'}" aria-hidden="true"></i>${a === 'work' ? 'work' : 'personal'}</span>`;
+export const areaMark = (a) => `<span class="m area">${a === 'work' ? 'Work' : 'Personal'}</span>`;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 let lastArea = 'personal'; // what the quick-add bar uses until you switch it (remembered on this phone)
 try {
   if (localStorage.getItem('tempo.area') === 'work') lastArea = 'work';
 } catch {}
 
-// The one priority signal used everywhere: ! low · !! medium · !!! high (plus a thicker checkbox for high).
+// Priority is written out as a word ("High") in the detail line; high also gets a darker checkbox.
 export const prioMark = (p) =>
-  p ? `<span class="m prio" title="${PRIO_LABEL[p]} priority"><span aria-hidden="true">${PRIO_GLYPH[p]}</span><span class="sr">${PRIO_LABEL[p]} priority</span></span>` : '';
+  p ? `<span class="m prio p${p}">${cap(PRIO_LABEL[p])}<span class="sr"> priority</span></span>` : '';
 
 // ---------- task row ----------
 export function taskRow(t, { showArea = true, showDue = true } = {}) {
@@ -28,12 +28,12 @@ export function taskRow(t, { showArea = true, showDue = true } = {}) {
   if (t.prio) meta.push(prioMark(t.prio));
   if (t.due && showDue) {
     const cls = !t.done && t.due < today ? 'late' : t.due === today ? 'today' : '';
-    meta.push(`<span class="m ${cls}">${icon('calendar', 13)}${fmtDate(t.due)}</span>`);
+    meta.push(`<span class="m ${cls}">${fmtDate(t.due)}</span>`);
   }
   if (showArea) meta.push(areaMark(t.area));
-  if (t.sub.length) meta.push(`<span class="m">${icon('list', 13)}${t.sub.filter((s) => s.d).length}/${t.sub.length}</span>`);
-  if (t.est || t.pomos) meta.push(`<span class="m">${icon('timer', 13)}${t.pomos}${t.est ? '/' + t.est : ''}</span>`);
-  if (t.repeat) meta.push(`<span class="m">${icon('repeat', 13)}</span>`);
+  if (t.sub.length) meta.push(`<span class="m">${t.sub.filter((s) => s.d).length}/${t.sub.length} subtasks</span>`);
+  if (t.est || t.pomos) meta.push(`<span class="m">${t.pomos}${t.est ? '/' + t.est : ''} focus</span>`);
+  if (t.repeat) meta.push(`<span class="m">Repeats ${t.repeat}</span>`);
   for (const tag of t.tags.slice(0, 3)) meta.push(`<span class="m tag">#${esc(tag)}</span>`);
   const title = t.title.trim() ? esc(t.title) : '<span class="muted">untitled</span>';
   return `<div class="task ${t.done ? 'done' : ''}" data-id="${esc(t.id)}">
@@ -250,8 +250,8 @@ export function bindComposer(root, getDefaults = () => ({})) {
     if (picked && !r.due) c.push(`<button type="button" class="m chip-sm" data-pick="1" aria-label="remove the picked date">${icon('calendar', 13)}${fmtDate(picked)}${icon('x', 12, 'chip-x')}</button>`);
     const chip = (kind, html, label) => c.push(`<button type="button" class="m chip-sm" data-ig="${esc(kind)}" aria-label="keep ${esc(label)} as text">${html}${icon('x', 12, 'chip-x')}</button>`);
     if (r.due) chip('due', `${icon('calendar', 13)}${fmtDate(r.due)}`, 'date');
-    if (r.prio) chip('prio', `<b class="prio-g" aria-hidden="true">${PRIO_GLYPH[r.prio]}</b>${PRIO_LABEL[r.prio]}`, 'priority');
-    if (r.area) chip('area', `<i class="dot ${r.area}"></i>${r.area}`, 'list');
+    if (r.prio) chip('prio', `${PRIO_LABEL[r.prio]} priority`, 'priority');
+    if (r.area) chip('area', r.area, 'list');
     r.tags.forEach((t) => chip(`tag:${t}`, `#${esc(t)}`, 'tag'));
     if (r.repeat) chip('repeat', `${icon('repeat', 13)}${r.repeat}`, 'repeat');
     if (r.est) chip('est', `${icon('timer', 13)}${r.est}`, 'planned focus sessions');

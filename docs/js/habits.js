@@ -12,7 +12,7 @@ export function habitRow(h, today = todayStr()) {
   const title = h.title.trim() ? esc(h.title) : '<span class="muted">untitled</span>';
   return `<div class="task habit ${done ? 'done' : ''}" data-hid="${esc(h.id)}">
     <button type="button" class="check p0" data-act="hcheck" role="checkbox" aria-checked="${done}" aria-label="${esc(h.title.trim() || 'untitled')}">${done ? icon('check', 15) : ''}</button>
-    <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta"><span class="m">${icon('repeat', 13)}every day</span></span></button>
+    <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta"><span class="m">Every day</span></span></button>
   </div>`;
 }
 
@@ -130,7 +130,7 @@ function card(h, today) {
   return `<section class="hb-card" data-hid="${esc(h.id)}">
     <div class="task habit ${done ? 'done' : ''}" data-hid="${esc(h.id)}">
       <button type="button" class="check p0" data-act="hcheck" role="checkbox" aria-checked="${done}" aria-label="${esc(h.title.trim() || 'untitled')}: today">${done ? icon('check', 15) : ''}</button>
-      <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta"><span class="m">${icon('fire', 13)}${cur} day streak</span><span class="m">best ${best}</span></span></button>
+      <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta"><span class="m">${cur} day streak</span><span class="m">Best ${best}</span></span></button>
     </div>
     ${squares(h, today)}
   </section>`;

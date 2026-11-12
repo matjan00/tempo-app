@@ -1,11 +1,24 @@
 /* ---------- habits ---------- */
-.hb-card { margin: 0 0 18px; padding: 4px 14px 14px; border: 2px solid var(--text); background: var(--surface); box-shadow: var(--hard); }
-.hb-card .task { border-bottom: 0; padding-left: 0; padding-right: 0; }
+.hb-card { margin: 0 0 6px; padding: 0 0 14px; border-bottom: 0.5px solid var(--line); }
+.hb-card:last-of-type { border-bottom: 0; }
+.hb-card .task { border-bottom: 0; }
 /* WEEKS columns × 7 rows (Monday on top), filled week by week */
-.hb-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 4px; }
-.hb-grid i { aspect-ratio: 1; border: 2px solid var(--text); background: var(--surface); }
-.hb-grid i.on { background: var(--text); }
-.hb-grid i.before, .hb-grid i.future { border-color: var(--soft); border-style: dashed; }
-.hb-grid i.now { outline: 2px solid var(--accent-text, var(--text)); outline-offset: 1px; }
-.hb-info { margin: 12px 0 18px; color: var(--muted); }
+.hb-grid { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 3px; max-width: 420px; }
+.hb-grid i { aspect-ratio: 1; border-radius: 3px; background: var(--surface2); }
+.hb-grid i.on { background: var(--accent); }
+.hb-grid i.before, .hb-grid i.future { background: transparent; box-shadow: inset 0 0 0 1px var(--surface2); }
+.hb-grid i.now { box-shadow: 0 0 0 1.5px var(--text); }
+.hb-grid i.now.on { box-shadow: 0 0 0 1.5px var(--text), inset 0 0 0 2px var(--bg); }
 .task.habit .t-main { cursor: pointer; }
+
+/* habit sheet: the last 7 days, tap one to tick a day you forgot */
+.hb-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 0 0 6px; }
+.hb-day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 50px; border-radius: 10px; background: var(--surface2); color: var(--text); line-height: 1.15; }
+.hb-day span { font-size: 11px; color: var(--muted); }
+.hb-day b { font-size: 15px; font-weight: 500; }
+.hb-day.on { background: var(--accent); color: var(--accent-ink); }
+.hb-day.on span { color: var(--accent-ink); opacity: 0.85; }
+.hb-day.now { box-shadow: inset 0 0 0 1.5px var(--text); }
+.hb-day.now.on { box-shadow: inset 0 0 0 1.5px var(--text), inset 0 0 0 3px var(--bg); }
+.hb-day:active { opacity: 0.75; }
+.hb-info { margin: 12px 0 20px; font-size: 14px; color: var(--muted); }

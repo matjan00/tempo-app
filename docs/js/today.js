@@ -21,7 +21,7 @@ function progress(done, total) {
   const segs = total <= 12
     ? `<span class="prog-bar segs" aria-hidden="true">${Array.from({ length: total }, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('')}</span>`
     : `<span class="prog-bar" aria-hidden="true"><i class="on" style="width:${((done / total) * 100).toFixed(1)}%"></i></span>`;
-  return `<div class="prog"><p class="prog-t"><b>${done} of ${total} done</b></p>${segs}</div>`;
+  return `<div class="prog"><p class="prog-t">${done} of ${total} done</p>${segs}</div>`;
 }
 
 export function render(root) {

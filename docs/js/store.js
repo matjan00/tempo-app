@@ -12,7 +12,8 @@ export let saveFailed = false; // true while the last attempt to save failed (st
 
 export const DEFAULT_SETTINGS = {
   theme: 'auto', // auto | light | dark
-  accent: 'coral',
+  accent: 'blue',
+  design: 2, // 2 = plain design (blue default accent); older saves get moved over once in migrate()
   focus: 25,
   short: 5,
   long: 15,
@@ -90,6 +91,11 @@ function migrate(s) {
   let ver = Number(s.v) || 1;
   while (ver < SCHEMA && MIGRATIONS[ver]) (s = MIGRATIONS[ver](s)), ver++;
   const out = { ...f, ...s, v: SCHEMA, rev: Math.max(0, Number(s.rev) || 0), settings: { ...f.settings, ...(isObj(s.settings) ? s.settings : {}) }, timer: { ...f.timer, ...(isObj(s.timer) ? s.timer : {}) } };
+  // plain design: the old default red accent becomes the new default blue (once; picking red again later sticks)
+  if (isObj(s.settings) && s.settings.design !== 2) {
+    if (out.settings.accent === 'coral') out.settings.accent = 'blue';
+    out.settings.design = 2;
+  }
   // old saves had projects + an inbox: every task is now either "work" or "personal"
   const oldProjects = arr(s.projects).filter(isObj);
   const areaOfProject = (id) => {

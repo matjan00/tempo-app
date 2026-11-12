@@ -35,7 +35,7 @@ function html() {
   const seg = THEMES.map(([v, l]) => `<button data-theme="${v}" class="${s.theme === v ? 'on' : ''}" aria-pressed="${s.theme === v}">${l}</button>`).join('');
   const sw = Object.entries(theme.ACCENTS)
     .map(([id, a]) => {
-      const bg = a.c || 'conic-gradient(#18181b 50%, #f2f2f3 0)';
+      const bg = a.c || 'conic-gradient(#1c1c1e 50%, #f2f2f3 0)';
       return `<button class="set-sw ${s.accent === id ? 'on' : ''}" data-accent="${id}" style="background:${bg}" aria-label="accent ${esc(a.name.toLowerCase())}" aria-pressed="${s.accent === id}" title="${esc(a.name.toLowerCase())}"></button>`;
     })
     .join('');

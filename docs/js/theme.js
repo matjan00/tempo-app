@@ -4,11 +4,11 @@
 import * as store from './store.js';
 
 export const ACCENTS = {
-  coral: { name: 'Red', c: '#ff2d2d', ink: '#111111', text: '#c4111b', textDark: '#ff2d2d' },
-  amber: { name: 'Amber', c: '#f2a31b', ink: '#111111', text: '#83580f', textDark: '#f2a31b' },
-  green: { name: 'Green', c: '#2fa56b', ink: '#111111', text: '#1f6f48', textDark: '#2fa56b' },
-  blue: { name: 'Blue', c: '#3e7bfa', ink: '#111111', text: '#2f5dbe', textDark: '#5b8ffb' },
-  violet: { name: 'Violet', c: '#8b5cf6', ink: '#000000', text: '#6e49c2', textDark: '#a27df8' },
+  blue: { name: 'Blue', c: '#2563eb', ink: '#ffffff', text: '#1d4ed8', textDark: '#7aa5ff' },
+  coral: { name: 'Red', c: '#e5383b', ink: '#ffffff', text: '#c0262d', textDark: '#ff7b7b' },
+  amber: { name: 'Amber', c: '#f2a31b', ink: '#111111', text: '#83580f', textDark: '#f2b544' },
+  green: { name: 'Green', c: '#1f8a55', ink: '#ffffff', text: '#1a7347', textDark: '#4cc58a' },
+  violet: { name: 'Violet', c: '#7c4ddb', ink: '#ffffff', text: '#6a3fc7', textDark: '#b294f9' },
   mono: { name: 'Mono', c: null, ink: null },
 };
 
@@ -22,17 +22,17 @@ export function resolvedTheme() {
 export function applyTheme() {
   const s = store.get().settings;
   // an accent from a corrupt save / imported backup: fall back to the default and fix the saved value
-  if (!Object.hasOwn(ACCENTS, s.accent)) store.mutate((st) => (st.settings.accent = 'coral'), true);
+  if (!Object.hasOwn(ACCENTS, s.accent)) store.mutate((st) => (st.settings.accent = 'blue'), true);
   const theme = resolvedTheme();
   const root = document.documentElement;
   root.dataset.theme = theme;
-  let a = ACCENTS[s.accent] || ACCENTS.coral;
-  if (s.accent === 'mono') a = theme === 'dark' ? { c: '#f2f2f3', ink: '#111113', text: '#f2f2f3', textDark: '#f2f2f3' } : { c: '#18181b', ink: '#ffffff', text: '#18181b', textDark: '#18181b' };
+  let a = ACCENTS[s.accent] || ACCENTS.blue;
+  if (s.accent === 'mono') a = theme === 'dark' ? { c: '#f2f2f3', ink: '#111113', text: '#f2f2f3', textDark: '#f2f2f3' } : { c: '#1c1c1e', ink: '#ffffff', text: '#1c1c1e', textDark: '#1c1c1e' };
   const text = theme === 'dark' ? a.textDark : a.text;
   root.style.setProperty('--accent', a.c);
   root.style.setProperty('--accent-ink', a.ink);
   root.style.setProperty('--accent-text', text);
-  const bg = theme === 'dark' ? '#111111' : '#ededed';
+  const bg = theme === 'dark' ? '#121212' : '#ffffff';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', bg);
   try {
     localStorage.setItem('tempo.theme', JSON.stringify({ theme, accent: a.c, ink: a.ink, text }));
