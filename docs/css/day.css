@@ -42,3 +42,12 @@
 .blk-reasons .chip { font-size: 14px; min-height: 34px; }
 .blk-reason { margin-bottom: 12px; }
 .qa-sheet .row-btns .btn { width: 100%; }
+
+/* "add to plan" chip next to a task: keep the title clear of it */
+.pull .t-main { padding-right: 104px; }
+
+/* task sheet: how long (chips + own minutes) */
+.ts-dur-own { gap: 4px; color: var(--muted); }
+.ts-dur-own input { width: 52px; border: 0; background: none; font: inherit; color: var(--text); text-align: right; padding: 0; outline: none; -moz-appearance: textfield; }
+.ts-dur-own input::-webkit-outer-spin-button, .ts-dur-own input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ts-dur-own:focus-within { border-color: var(--accent); }

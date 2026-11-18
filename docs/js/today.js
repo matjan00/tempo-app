@@ -57,7 +57,9 @@ export function render(root) {
     ${day.section(today)}
     ${section('Overdue', late, 'late')}
     ${habits.length ? `<section class="sec"><h2>Habits<span>${habitsDone}/${habits.length}</span></h2>${habits.map((h) => habitRow(h, today)).join('')}</section>` : ''}
-    ${section(plan ? 'Also due today' : 'Today', todays, '', { showDue: false }) /* the heading already says "today" */}
+    ${plan && todays.length
+      ? `<section class="sec"><h2>Also due today<span>${todays.length}</span></h2>${todays.map((t) => `<div class="pull" data-id="${esc(t.id)}">${taskRow(t, { showDue: false })}<button class="chip" data-act="toplan" aria-label="add to today’s plan: ${esc(t.title)}">add to plan</button></div>`).join('')}</section>`
+      : section('Today', todays, '', { showDue: false }) /* the heading already says "today" */}
     ${empty ? `<div class="empty">${icon('leaf', 34)}<p>${doneToday.length ? 'all clear. enjoy the rest of your day.' : 'nothing planned for today.'}</p><small>${unplanned.length ? 'add a task below, or plan one of your unplanned tasks.' : 'type a task in the bar below. words like “tomorrow” or “#gym” are picked up automatically.'}</small></div>` : ''}
     ${empty && unplanned.length ? `<section class="sec"><h2>unplanned tasks</h2>${unplanned.map((t) => `<div class="pull" data-id="${t.id}">${taskRow(t)}<button class="chip" data-act="plan" aria-label="do today: ${esc(t.title)}">do today</button></div>`).join('')}</section>` : ''}
     ${doneToday.length ? `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Done today<span>${doneToday.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? doneToday.map((t) => taskRow(t)).join('') : ''}</section>` : ''}
@@ -81,7 +83,14 @@ export function render(root) {
     if (a === 'plan') {
       const id = e.target.closest('.pull').dataset.id;
       store.updateTask(id, { due: today });
-      toast('planned for today', { action: 'undo', onAction: () => store.updateTask(id, { due: null }) });
+      const at = plan && day.addToPlan(id);
+      toast(at ? `planned for today at ${at}` : 'planned for today', { action: 'undo', onAction: () => (day.removeFromPlan(id), store.updateTask(id, { due: null })) });
+    }
+    if (a === 'toplan') {
+      const id = e.target.closest('.pull').dataset.id;
+      const at = day.addToPlan(id);
+      if (at) toast(`added to today’s plan at ${at}`, { action: 'undo', onAction: () => day.removeFromPlan(id) });
+      else toast('no free slot left today that fits it. shorten it (how long) or move something.', { ms: 6000 });
     }
   };
 }

@@ -128,6 +128,7 @@ function migrate(s) {
     n.sub = arr(n.sub).filter(isObj).map((x) => ({ id: cleanId(x.id, subIds), t: String(x.t ?? ''), d: !!x.d }));
     n.prio = [0, 1, 2, 3].includes(n.prio) ? n.prio : 0;
     n.est = Math.max(0, num(n.est, 0));
+    n.dur = Math.min(480, Math.max(0, Math.round(num(n.dur, 0)))); // minutes the task takes (0 = not set)
     n.pomos = Math.max(0, num(n.pomos, 0));
     n.focusMin = Math.max(0, num(n.focusMin, 0));
     n.done = n.done === true;
@@ -310,6 +311,7 @@ export const newTask = (p = {}) => ({
   sub: [],
   repeat: null, // daily | weekdays | weekly | monthly
   est: 0, // estimated pomodoros
+  dur: 0, // how long it takes, in minutes (0 = not set; the planner then guesses)
   pomos: 0,
   focusMin: 0,
   status: 'todo', // todo | doing; done is a separate flag

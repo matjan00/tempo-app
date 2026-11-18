@@ -25,7 +25,8 @@ const TABLE = 'tempo_push_timers';
 const DEVICES = 'tempo_push_devices';
 const SCORED = ['task', 'habit', 'personal'];
 // Block starts are announced by Google Calendar (Plan calendar popups light up a locked Android screen more
-// reliably than web push), so only the "done?" end alerts come from here. Set to true to send starts too.
+// reliably than web push), except for blocks added or moved in the app (cal: false), which the calendar
+// doesn't know about. Set to true to send every start from here too.
 const START_ALERTS = false;
 const STALE_S = 600; // a block that ended more than 10 minutes ago is not announced any more
 
@@ -107,7 +108,8 @@ async function blockAlarms() {
     const live = blocks.filter((b) => b?.status === 'planned' && b?.kind !== 'break' && Number.isFinite(hhmmSec(b.start)) && Number.isFinite(hhmmSec(b.end)));
     // start alerts for every block (meetings too); "done?" alerts at the end of task / habit / personal blocks
     const events = [
-      ...(START_ALERTS ? live.map((b) => ({ at: hhmmSec(b.start), b, kind: 'start' })) : []),
+      // starts: the calendar announces planned blocks; blocks added or moved in the app (cal: false) are announced here
+      ...live.filter((b) => START_ALERTS || b.cal === false).map((b) => ({ at: hhmmSec(b.start), b, kind: 'start' })),
       ...live.filter((b) => SCORED.includes(b.kind)).map((b) => ({ at: hhmmSec(b.end), b, kind: 'end' })),
     ];
     const sinceSec = Math.max(sec - STALE_S, sec - Math.max(0, Math.round((now.getTime() - new Date(d.checked_until).getTime()) / 1000)));

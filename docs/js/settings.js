@@ -90,6 +90,7 @@ function html() {
       ${helpRow('#gym', 'adds a tag')}
       ${helpRow('@work', 'marks it as work (default is personal)')}
       ${helpRow('*2', 'plans 2 focus sessions')}
+      ${helpRow('30m · 1h · 1h30', 'how long it takes (used by the day plan)')}
       ${helpRow('every week', 'makes it repeat')}
       ${helpRow('every day', 'makes it a daily habit')}
     </dl>

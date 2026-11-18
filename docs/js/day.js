@@ -254,6 +254,27 @@ function askReason(id) {
   input.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), go()));
 }
 
+// How long a task's block is: its own duration, else its focus estimate, else a default (as the planner does).
+export const taskMinutes = (t) => (t.dur > 0 ? t.dur : t.est > 0 ? t.est * 25 + (t.est - 1) * 5 : t.area === 'work' ? 50 : 25);
+
+// Put a task into today's plan, in the next free slot. Returns the start time, or null when nothing fits.
+export function addToPlan(taskId) {
+  const today = todayStr();
+  const plan = store.getPlan(today);
+  const t = store.getTask(taskId);
+  if (!plan || !t || t.done || plan.blocks.some((b) => b.taskId === taskId && b.status !== 'missed')) return null;
+  const block = { id: 't-' + t.id + '-' + Date.now().toString(36), kind: t.area === 'work' ? 'task' : 'personal', area: t.area, title: t.title, taskId: t.id };
+  const r = P.placeBlock(plan, block, Math.ceil(taskMinutes(t) / 5) * 5, P.nowMin());
+  if (!r) return null;
+  save(r.plan);
+  return r.start;
+}
+export function removeFromPlan(taskId) {
+  const plan = store.getPlan(todayStr());
+  if (!plan) return;
+  save({ ...plan, blocks: plan.blocks.filter((b) => !(b.taskId === taskId && b.cal === false && b.status === 'planned')) });
+}
+
 // An answer from a block alert (Done / Missed buttons, or a tap on it).
 export function blockAction(date, id, act) {
   const b = getBlock(date, id);

@@ -86,7 +86,9 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 
 ### Phase 4: alarms (done)
 - Settings → Sync → "Ask done? when a block ends" registers the phone. The push server reads today's plan from the sync table and, when a still-open task/habit/personal block ends, sends a notification with **Done** and **Missed** buttons (works with the app closed, and follows plans the routines write). Done ticks the block; Missed opens the reason sheet.
-- Block *start* alerts come from the Plan calendar instead.
+- Block *start* alerts come from the Plan calendar (popup at 0 min), which lights up a locked phone best. Blocks the calendar doesn't know about (added or moved in the app, `cal: false`) get their start alert from the push server.
+- Tasks have a "how long" (task sheet, or type `30m` / `1h` / `1h30` in quick-add); the planner uses it. Without one it guesses (50 min work, 25 min personal, or the focus estimate).
+- A task added for today while today has a plan goes straight into the next free slot (work within 8–16, personal after 16:00, nothing after 22:00). "Also due today" rows have an "add to plan" button.
 - The alarm server currently holds one timer per phone. Extend it to hold a day of alarms: block start ("Now: write report until 9:50") and block end ("Done?" with **Done** and **Missed** buttons in the notification).
 - Missed (button, or end passed and not ticked): the block moves to the next free slot or tomorrow, and the reason is asked in the evening review.
 - Nothing after 22:00.

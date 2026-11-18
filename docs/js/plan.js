@@ -9,6 +9,8 @@
 //   status: planned | done | missed
 //   moved:  'HH:MM' (moved to later today) or 'tomorrow', set on a missed block
 //   copyOf: id of the missed block this one replaces. Copies are a second chance, not part of the score.
+//   cal:    false when the block is not (or no longer) at this time in the Plan Google calendar (added or moved
+//           in the app), so the push server announces its start instead of the calendar.
 
 export const FIXED = ['meeting', 'prep', 'lunch', 'break'];
 export const SCORED = ['task', 'habit', 'personal'];
@@ -148,9 +150,25 @@ export function missBlock(plan, blockId, reason = '', at = nowMin()) {
   }
   b.moved = fromMin(slot);
   const { reason: _r, moved: _m, status: _s, ...rest } = b;
-  p.blocks.push({ ...rest, id: newId(), start: fromMin(slot), end: fromMin(slot + dur(b)), status: 'planned', copyOf: b.copyOf || b.id });
+  p.blocks.push({ ...rest, id: newId(), start: fromMin(slot), end: fromMin(slot + dur(b)), status: 'planned', copyOf: b.copyOf || b.id, cal: false });
   p.blocks.sort((x, y) => toMin(x.start) - toMin(y.start));
   return { plan: p, moved: b.moved };
+}
+
+// Add a block (without times) in the first free slot from `at`: work inside work hours, anything else
+// after work (or from now, once work is over). Returns { plan, start } or null when nothing fits.
+export function placeBlock(plan, block, length, at = nowMin()) {
+  const work = block.kind === 'task' && block.area !== 'personal';
+  const lo = work ? toMin(DAY.workStart) : Math.max(toMin(DAY.workEnd), at);
+  const hi = work ? toMin(DAY.workEnd) : toMin(DAY.end);
+  for (const [s, e] of freeSlots(plan, Math.max(lo, ceil5(at)), hi)) {
+    if (e - s < length) continue;
+    const p = structuredClone(plan);
+    p.blocks.push({ status: 'planned', ...block, start: fromMin(s), end: fromMin(s + length), cal: false });
+    p.blocks.sort((x, y) => toMin(x.start) - toMin(y.start));
+    return { plan: p, start: fromMin(s) };
+  }
+  return null;
 }
 
 // Rebuild the rest of the day from `at`:
@@ -171,7 +189,7 @@ export function replanFrom(plan, at = nowMin()) {
       b.status = 'missed';
       b.reason ||= 'not done before replanning';
       const { reason: _r, status: _s, ...rest } = b;
-      queue.push({ ...rest, id: newId(), copyOf: b.copyOf || b.id, from: b });
+      queue.push({ ...rest, id: newId(), copyOf: b.copyOf || b.id, cal: false, from: b });
     } else queue.push({ ...b, from: b, keep: true });
   }
   const ignore = new Set(queue.filter((q) => q.keep).map((q) => q.id));
@@ -192,6 +210,7 @@ export function replanFrom(plan, at = nowMin()) {
       continue;
     }
     const nb = { ...b, start: fromMin(slot), end: fromMin(slot + dur(b)) };
+    if (nb.start !== b.start) nb.cal = false; // moved: the calendar still shows the old time
     placed.push(nb);
     if (!keep) from.moved = nb.start;
   }

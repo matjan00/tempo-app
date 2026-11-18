@@ -38,4 +38,15 @@ assert(late.tomorrow.map((b) => b.id).sort().join() === 'mail,report', 'late rep
 const mk = (date, done) => ({ date, blocks: [B('a', '08:00', '09:40', 'task', { status: done ? 'done' : 'planned' })] });
 const plans = [mk('2026-11-12', false), mk('2026-11-13', true), mk('2026-11-16', true), mk('2026-11-17', true)];
 assert(P.streak(plans, '2026-11-18') === 3, 'streak skips weekends and days without a plan: ' + P.streak(plans, '2026-11-18'));
+// adding a task during the day
+let pb = P.placeBlock(plan, { id: 'new', kind: 'task', area: 'work', title: 'new work' }, 30, P.toMin('10:40'));
+assert(pb?.start === '11:20' && pb.plan.blocks.find((b) => b.id === 'new').cal === false, 'new work task goes in the next free work slot, marked not in calendar: ' + pb?.start);
+pb = P.placeBlock(plan, { id: 'new', kind: 'personal', area: 'personal', title: 'call mom' }, 30, P.toMin('10:40'));
+assert(pb?.start === '16:00', 'a personal task added during work waits until after work: ' + pb?.start);
+pb = P.placeBlock(plan, { id: 'new', kind: 'task', area: 'work', title: 'too late' }, 30, P.toMin('15:50'));
+assert(pb === null, 'no work slot left: nothing placed');
+pb = P.placeBlock(plan, { id: 'new', kind: 'task', area: 'work', title: 'big' }, 200, P.toMin('08:00'));
+assert(pb === null, 'a block longer than any free gap is not placed');
+assert(P.replanFrom(plan, P.toMin('12:00')).plan.blocks.find((b) => b.copyOf === 'report').cal === false, 'replan copies are marked not in calendar');
+assert(P.missBlock(plan, 'report', '', P.toMin('11:20')).plan.blocks.find((b) => b.copyOf === 'report').cal === false, 'missed copies are marked not in calendar');
 process.exitCode = failed ? 1 : 0;

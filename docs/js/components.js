@@ -4,6 +4,7 @@ import { parseQuick } from './parse.js';
 import { openSheet, toast, scrollToEl } from './ui.js';
 import { icon } from './icons.js';
 import { esc, fmtDate, todayStr, addDays, parseYmd, haptic, uid } from './util.js';
+import { addToPlan, removeFromPlan } from './day.js';
 
 export const PRIO_LABEL = ['none', 'low', 'medium', 'high'];
 const REPEATS = [[null, 'never'], ['weekdays', 'weekdays'], ['weekly', 'weekly'], ['monthly', 'monthly']];
@@ -21,6 +22,10 @@ try {
 export const prioMark = (p) =>
   p ? `<span class="m prio p${p}">${cap(PRIO_LABEL[p])}<span class="sr"> priority</span></span>` : '';
 
+// "30 min", "1 h", "1 h 30 min"
+export const durLabel = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
+const DURS = [15, 30, 45, 60, 90, 120];
+
 // ---------- task row ----------
 export function taskRow(t, { showArea = true, showDue = true } = {}) {
   const today = todayStr();
@@ -32,6 +37,7 @@ export function taskRow(t, { showArea = true, showDue = true } = {}) {
   }
   if (showArea) meta.push(areaMark(t.area));
   if (t.sub.length) meta.push(`<span class="m">${t.sub.filter((s) => s.d).length}/${t.sub.length} subtasks</span>`);
+  if (t.dur) meta.push(`<span class="m">${durLabel(t.dur)}</span>`);
   if (t.est || t.pomos) meta.push(`<span class="m">${t.pomos}${t.est ? '/' + t.est : ''} focus</span>`);
   if (t.repeat) meta.push(`<span class="m">Repeats ${t.repeat}</span>`);
   for (const tag of t.tags.slice(0, 3)) meta.push(`<span class="m tag">#${esc(tag)}</span>`);
@@ -255,6 +261,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
     r.tags.forEach((t) => chip(`tag:${t}`, `#${esc(t)}`, 'tag'));
     if (r.repeat) chip('repeat', `${icon('repeat', 13)}${r.repeat}`, 'repeat');
     if (r.est) chip('est', `${icon('timer', 13)}${r.est}`, 'planned focus sessions');
+    if (r.dur) chip('dur', `${icon('timer', 13)}${durLabel(r.dur)}`, 'how long');
     chips.hidden = !c.length;
     chips.innerHTML = c.join('');
     if (hint) hint.hidden = !!input.value;
@@ -305,7 +312,15 @@ export function bindComposer(root, getDefaults = () => ({})) {
       area: r.area || area,
       repeat: r.repeat,
       est: r.est,
+      dur: r.dur,
     });
+    // a task for today goes straight into today's plan, in the next free slot
+    if (t.due === todayStr() && store.getPlan(todayStr())) {
+      const at = addToPlan(t.id);
+      root.querySelector('[data-keep=qa]')?.focus();
+      if (at) return toast(`added to today’s plan at ${at}`, { action: 'undo', onAction: () => removeFromPlan(t.id) });
+      return toast('no free time left in today’s plan, so it’s under “also due today”', { ms: 6000 });
+    }
     root.querySelector('[data-keep=qa]')?.focus();
     // briefly highlight the new row so it is easy to spot
     const row = root.querySelector(`.task[data-id="${CSS.escape(t.id)}"]`);
@@ -348,6 +363,12 @@ export function openTask(id) {
         <button type="button" class="chip" data-d="${addDays(todayStr(), 1)}">tomorrow</button>
         <button type="button" class="chip" data-d="week">next week</button>
         <span class="chip-date"><label class="chip date">${icon('calendar', 15)}<span id="ts-due-label">pick date</span><input type="date" id="ts-date" value="${esc(t0.due || '')}" aria-label="pick a date"></label><button type="button" class="chip date-x" id="ts-nodate" aria-label="remove the date" hidden>${icon('x', 15)}</button></span>
+      </div>
+
+      <h2 class="lbl">how long</h2>
+      <div class="chips" id="ts-dur">
+        ${DURS.map((m) => `<button type="button" class="chip ${t0.dur === m ? 'on' : ''}" data-dur="${m}" aria-pressed="${t0.dur === m}">${durLabel(m)}</button>`).join('')}
+        <label class="chip ts-dur-own"><input type="number" id="ts-dur-in" min="5" max="480" step="5" inputmode="numeric" placeholder="other" value="${t0.dur && !DURS.includes(t0.dur) ? t0.dur : ''}" aria-label="minutes"> min</label>
       </div>
 
       <h2 class="lbl">list</h2>
@@ -439,6 +460,26 @@ export function openTask(id) {
     setDue(c.dataset.d === 'week' ? nextMonday() : c.dataset.d);
   });
   $('#ts-date').addEventListener('change', (e) => setDue(e.target.value));
+
+  // how long: tap a chip (tap it again to clear) or type minutes
+  const paintDur = () => {
+    const d = cur()?.dur || 0;
+    rec.body.querySelectorAll('#ts-dur [data-dur]').forEach((b) => (b.classList.toggle('on', +b.dataset.dur === d), b.setAttribute('aria-pressed', +b.dataset.dur === d)));
+  };
+  $('#ts-dur').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dur]');
+    if (!b) return;
+    const v = cur()?.dur === +b.dataset.dur ? 0 : +b.dataset.dur;
+    set({ dur: v });
+    $('#ts-dur-in').value = '';
+    paintDur();
+  });
+  $('#ts-dur-in').addEventListener('change', (e) => {
+    const v = Math.round(Number(e.target.value) / 5) * 5;
+    set({ dur: v >= 5 && v <= 480 ? v : 0 });
+    if (!(v >= 5 && v <= 480)) e.target.value = '';
+    paintDur();
+  });
 
   // the "details" row: current values as chips; tap to open / close the editors (stays as left while the sheet is open)
   const summary = () => {

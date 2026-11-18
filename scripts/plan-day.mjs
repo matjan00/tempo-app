@@ -28,7 +28,8 @@ export const RULES = {
   habitLen: 15,
   defaultWork: 50, // minutes for a work task without an estimate
   defaultPersonal: 25,
-  maxBlock: 120,
+  maxBlock: 120, // longest guessed block
+  maxDur: 240, // longest block for a task with its own duration
 };
 
 const ceil5 = (m) => Math.ceil(m / 5) * 5;
@@ -39,6 +40,7 @@ const addDays = (date, n) => {
 };
 
 function taskLength(t, focus) {
+  if (Number(t.dur) > 0) return Math.min(RULES.maxDur, ceil5(Number(t.dur))); // the user's own choice wins
   const est = Number(t.est) || 0;
   const raw = est > 0 ? est * focus + (est - 1) * 5 : t.area === 'work' ? RULES.defaultWork : RULES.defaultPersonal;
   return Math.min(RULES.maxBlock, ceil5(raw));
@@ -168,7 +170,8 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     usedEve += e.len;
   }
 
-  const final = blocks.filter((b) => !b._gap);
+  // every block goes into the Plan calendar (meetings are already in the primary one): starts are announced there
+  const final = blocks.filter((b) => !b._gap).map((b) => ({ ...b, cal: true }));
   return {
     plan: cleanPlan({ id: planId(date), date, made: Date.now(), blocks: final }),
     overflow,
