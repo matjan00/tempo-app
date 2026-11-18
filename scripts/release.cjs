@@ -30,11 +30,13 @@ list.sort();
 const files = ['./', ...list];
 
 // Hash of every cached file's content. sw.js itself and version.js (which this script rewrites) are left out.
+// Text files are hashed with LF line endings, so git's CRLF checkout on Windows doesn't look like a change.
 const h = crypto.createHash('sha256');
 for (const f of list) {
   if (f === 'js/version.js') continue;
   h.update(f + '\0');
-  h.update(fs.readFileSync(path.join(docs, f)));
+  const buf = fs.readFileSync(path.join(docs, f));
+  h.update(/\.(html|css|js|json|webmanifest|svg)$/.test(f) ? buf.toString('utf8').replace(/\r\n/g, '\n') : buf);
   h.update('\0');
 }
 const hash = h.digest('hex').slice(0, 12);
