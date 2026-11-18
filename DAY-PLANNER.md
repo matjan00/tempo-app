@@ -1,6 +1,6 @@
 # Day planner: detailed plan
 
-Status: Phase 1 (sync) and Phase 2 (Day timeline, score, streak) are built. Phases 3–6 to do.
+Status: Phases 1–2 built; Phase 3 planner built and first used for 2026-11-19. Phases 4–6 to do.
 
 ## What you get, in one picture
 
@@ -76,7 +76,10 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 - Today screen: timeline with a "now" line, tap a block to mark it done, start the focus timer on it, or mark it missed with a reason.
 - Score + streak replace the progress line. "Replan from now" button.
 
-### Phase 3: Google Calendar
+### Phase 3: Google Calendar (planner built)
+- `scripts/plan-day.mjs` builds a day from the meetings + synced tasks and habits, saves it to the app (`--write`) and exports the calendar events (`--events`).
+- Meetings live in the personal calendar; only planned blocks go into the "Plan" calendar, each with an alert at its start.
+- Habits whose name starts with a time ("8:00 żelazo") become 5-minute reminders at that time. No prep before meetings outside work hours.
 - You connect the Google Calendar connector for your personal account (Claude settings → Connectors). I can't do that part for you.
 - I make a separate calendar called "Plan" for the blocks, so redoing a plan never touches your meetings, and you can hide it with one tap.
 - Colours: deep work, light work, prep, personal and habits each get their own colour.
