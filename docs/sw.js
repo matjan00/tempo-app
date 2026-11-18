@@ -1,7 +1,7 @@
 // Offline cache. Bump VERSION (scripts/release.cjs does it) so phones replace their saved copy.
-const VERSION = 'tempo-v28';
+const VERSION = 'tempo-v30';
 // FILES-START
-// HASH: 507799d793cb
+// HASH: d053804d9051
 const FILES = ["./","css/app.css","css/day.css","css/habits.css","css/notes.css","css/plain.css","css/settings.css","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png","index.html","js/app.js","js/components.js","js/day.js","js/focus.js","js/habits.js","js/icons.js","js/install.js","js/notes.js","js/parse.js","js/plan.js","js/push-config.js","js/push.js","js/settings.js","js/store.js","js/sync.js","js/tasks.js","js/theme.js","js/timer.js","js/today.js","js/ui.js","js/util.js","js/version.js","manifest.webmanifest"];
 // FILES-END
 
@@ -36,6 +36,21 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data.json(); } catch {}
+  if (d.kind === 'block-start') {
+    // a plan block starts now: a plain alert, tapping it opens the block
+    e.waitUntil(
+      self.registration.showNotification(d.title || 'Next block', {
+        body: d.body || '',
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        tag: d.tag || 'tempo-start',
+        renotify: true,
+        vibrate: [300, 120, 300],
+        data: { date: d.date, block: d.block },
+      })
+    );
+    return;
+  }
   if (d.kind === 'block') {
     // end of a plan block: answer right from the notification
     e.waitUntil(

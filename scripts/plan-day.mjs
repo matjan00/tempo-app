@@ -188,6 +188,7 @@ export function calendarEvents(plan, timeZone = 'Europe/Warsaw') {
       end: { dateTime: `${plan.date}T${b.end}:00`, timeZone },
       colorId: COLOR[b.kind],
       description: `to-do plan · ${b.kind}${b.taskId ? ' · task ' + b.taskId : ''}`,
+      overrideReminders: [{ method: 'popup', minutes: 0 }], // the start alert on the locked phone (the app sends the end alerts)
     }));
 }
 

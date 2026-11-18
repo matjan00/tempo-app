@@ -24,6 +24,9 @@ const MAX_ATTEMPTS = 3;
 const TABLE = 'tempo_push_timers';
 const DEVICES = 'tempo_push_devices';
 const SCORED = ['task', 'habit', 'personal'];
+// Block starts are announced by Google Calendar (Plan calendar popups light up a locked Android screen more
+// reliably than web push), so only the "done?" end alerts come from here. Set to true to send starts too.
+const START_ALERTS = false;
 const STALE_S = 600; // a block that ended more than 10 minutes ago is not announced any more
 
 const cors = (origin: string | null) => ({
@@ -89,8 +92,9 @@ const hhmmSec = (s: unknown) => {
   return m ? +m[1] * 3600 + +m[2] * 60 : NaN;
 };
 
-// End-of-block alerts: for each phone that wants them, announce today's still-open blocks that just ended,
-// then remember when the next one ends.
+// Block alerts: for each phone that wants them, announce blocks of today's plan that just started (all kinds)
+// and still-open task/habit/personal blocks that just ended ("done?"),
+// then remember when the next start or end is.
 async function blockAlarms() {
   const now = new Date();
   const { data: devs, error } = await sb.from(DEVICES).select('*').eq('block_alarms', true).lte('next_at', now.toISOString()).limit(20);
@@ -100,18 +104,30 @@ async function blockAlarms() {
     const { date, sec } = localNow(d.tz, now);
     const { data: rec } = await sb.from('tempo_records').select('data,deleted').eq('kind', 'plan').eq('id', 'd' + date.replace(/-/g, '')).maybeSingle();
     const blocks: Record<string, any>[] = !rec || rec.deleted || !Array.isArray(rec.data?.blocks) ? [] : rec.data.blocks;
-    const open = blocks.filter((b) => SCORED.includes(b?.kind) && b?.status === 'planned' && Number.isFinite(hhmmSec(b.end)));
+    const live = blocks.filter((b) => b?.status === 'planned' && b?.kind !== 'break' && Number.isFinite(hhmmSec(b.start)) && Number.isFinite(hhmmSec(b.end)));
+    // start alerts for every block (meetings too); "done?" alerts at the end of task / habit / personal blocks
+    const events = [
+      ...(START_ALERTS ? live.map((b) => ({ at: hhmmSec(b.start), b, kind: 'start' })) : []),
+      ...live.filter((b) => SCORED.includes(b.kind)).map((b) => ({ at: hhmmSec(b.end), b, kind: 'end' })),
+    ];
     const sinceSec = Math.max(sec - STALE_S, sec - Math.max(0, Math.round((now.getTime() - new Date(d.checked_until).getTime()) / 1000)));
     let gone = false;
-    for (const b of open) {
-      const end = hhmmSec(b.end);
-      if (end <= sinceSec || end > sec) continue;
+    for (const { at, b, kind } of events.sort((x, y) => x.at - y.at || (x.kind === 'end' ? -1 : 1))) {
+      if (at <= sinceSec || at > sec) continue;
+      const title = String(b.title || 'block');
+      const payload =
+        kind === 'end'
+          ? { kind: 'block', title: clip(`Done? ${title}`, 80), body: `${b.start}–${b.end} · Done or Missed`, tag: 'tempo-block-' + clip(b.id, 40), date, block: clip(b.id, 64) }
+          : {
+              kind: 'block-start',
+              title: clip(b.kind === 'meeting' ? `Meeting now: ${title}` : b.kind === 'prep' || b.kind === 'lunch' ? title : `Start: ${title}`, 80),
+              body: `${b.start}–${b.end}`,
+              tag: 'tempo-start-' + clip(b.id, 40),
+              date,
+              block: clip(b.id, 64),
+            };
       try {
-        await webpush.sendNotification(
-          { endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } },
-          JSON.stringify({ kind: 'block', title: clip(`Done? ${b.title || 'block'}`, 80), body: `${b.start}–${b.end} · Done or Missed`, tag: 'tempo-block-' + clip(b.id, 40), date, block: clip(b.id, 64) }),
-          { TTL: 1800, urgency: 'high' },
-        );
+        await webpush.sendNotification({ endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } }, JSON.stringify(payload), { TTL: 600, urgency: 'high' });
         sent++;
       } catch (e) {
         const code = (e as { statusCode?: number }).statusCode ?? 0;
@@ -123,7 +139,7 @@ async function blockAlarms() {
       await sb.from(DEVICES).delete().eq('endpoint', d.endpoint);
       continue;
     }
-    const next = open.map((b) => hhmmSec(b.end)).filter((e) => e > sec).sort((a, b) => a - b)[0];
+    const next = events.map((e) => e.at).filter((e) => e > sec).sort((a, b) => a - b)[0];
     // nothing left today: look again just after local midnight (tomorrow's plan)
     const waitS = next !== undefined ? next - sec : 86400 - sec + 60;
     await sb.from(DEVICES).update({ checked_until: now.toISOString(), next_at: new Date(now.getTime() + waitS * 1000).toISOString() }).eq('endpoint', d.endpoint);

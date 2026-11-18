@@ -45,7 +45,7 @@ function syncSection() {
       <div class="set-row"><span>Status</span><span class="set-ver" aria-live="polite">${esc(line)}</span></div>
       <div class="set-btns"><button class="btn ghost set-btn" data-act="sync-now">Sync now</button><button class="btn ghost set-btn" data-act="sync-off">Disconnect</button></div>
     </div>
-    ${push.supported() ? `<div class="set-card"><div class="set-row set-tog"><label><span>Ask “done?” when a block ends</span><span class="switch"><input type="checkbox" data-tog="blockAlarms" ${store.get().settings.blockAlarms ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label><p class="set-hint">At the end of each block in today’s plan you get a notification with Done and Missed buttons, even when to-do is closed.</p></div></div>` : ''}`;
+    ${push.supported() ? `<div class="set-card"><div class="set-row set-tog"><label><span>Ask “done?” when a block ends</span><span class="switch"><input type="checkbox" data-tog="blockAlarms" ${store.get().settings.blockAlarms ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label><p class="set-hint">When a task, habit or personal block in today’s plan ends you get a notification with Done and Missed buttons, even when to-do is closed. Block starts come from the Plan calendar.</p></div></div>` : ''}`;
 }
 
 const STEPPERS = [

@@ -27,8 +27,8 @@ If it refuses because tomorrow already has ticked blocks, don't force it: say so
 ## 4. Write the Plan calendar
 Find the calendar named "Plan" (list calendars). List its events for tomorrow and delete the ones whose
 description starts with `to-do plan`. Then create one event per entry in `e.json` on Plan: same summary,
-start/end, colorId and description, a popup reminder at 0 minutes, and no notifications to anyone
-(notificationLevel NONE).
+start/end, colorId and description, **a popup reminder at 0 minutes** (overrideReminders: popup, 0: this is
+the start alert on the user's locked phone) and no notifications to anyone (notificationLevel NONE).
 
 ## 5. Your message (this is the review)
 ```
