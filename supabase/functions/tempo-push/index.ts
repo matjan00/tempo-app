@@ -89,7 +89,7 @@ function localNow(tz: string, d = new Date()) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, sec: +parts.hour * 3600 + +parts.minute * 60 + +parts.second };
 }
 const hhmmSec = (s: unknown) => {
-  const m = /^(d{1,2}):(d{2})$/.exec(String(s ?? ''));
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s ?? ''));
   return m ? +m[1] * 3600 + +m[2] * 60 : NaN;
 };
 
