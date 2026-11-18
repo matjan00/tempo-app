@@ -10,12 +10,13 @@
 // Rules (DAY-PLANNER.md): meetings first, 10 min prep before each, lunch around 14:00, about 70% of the
 // free work time filled, hardest work in the biggest gaps before 11:00, personal things and habits after
 // 16:00 (capped so evenings stay light), nothing after 22:00. What doesn't fit is listed as overflow.
+// Exception: short breaks like chess (WORK_BREAKS in docs/js/plan.js) go inside work hours after 11:00.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DAY, toMin, fromMin, freeSlots, cleanPlan, planId, planFor } from '../docs/js/plan.js';
+import { DAY, toMin, fromMin, freeSlots, cleanPlan, planId, planFor, isWorkBreak, WORK_BREAKS_FROM } from '../docs/js/plan.js';
 
 export const RULES = {
   fill: 0.7, // share of free time to plan
@@ -146,7 +147,23 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     usedWork += len;
   }
 
-  // 6. evening: personal tasks first, then habits
+  // 6. work-hour breaks (chess): personal, but they belong in work hours, after the morning focus time,
+  //    at least an hour apart and 5 minutes clear of other blocks; they don't count towards the 70%.
+  //    No slot left: they go to the evening like any personal task.
+  const breaks = personal.filter((t) => isWorkBreak(t.title));
+  for (const t of breaks) {
+    const len = taskLength(t, focus);
+    const spaced = blocks.filter((b) => isWorkBreak(b.title)).map((b) => ({ ...b, start: fromMin(toMin(b.start) - 60), end: fromMin(toMin(b.end) + 60) }));
+    const padded = blocks.filter((b) => !b._gap).map((b) => (b.kind === 'meeting' || b.kind === 'lunch' ? b : { ...b, start: fromMin(toMin(b.start) - RULES.gap), end: fromMin(toMin(b.end) + RULES.gap) }));
+    const slot = freeSlots({ blocks: [...padded, ...spaced, ...blocks.filter((b) => b._gap)] }, toMin(WORK_BREAKS_FROM), toMin(DAY.workEnd))
+      .map(([a, b]) => [ceil5(a), b])
+      .find(([a, b]) => b - a >= len);
+    if (!slot) continue; // stays in `personal`: placed in the evening below
+    blocks.push({ id: `t-${t.id}`, kind: 'personal', area: 'personal', title: t.title, taskId: t.id, start: fromMin(slot[0]), end: fromMin(slot[0] + len), status: 'planned' });
+    personal.splice(personal.indexOf(t), 1);
+  }
+
+  // 7. evening: personal tasks first, then habits
   const freeEve = free(RULES.eveningFrom, DAY.end).reduce((n, [a, b]) => n + b - a, 0);
   const capEve = Math.min(RULES.eveningMax, Math.round(freeEve * RULES.fill));
   let usedEve = 0;

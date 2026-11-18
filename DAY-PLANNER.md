@@ -35,7 +35,7 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 | Hardest work | 8:00–11:00, in the biggest gaps between meetings |
 | Meetings | 10 min prep block before each one |
 | How full | about 70% of free time planned; the rest is slack |
-| Personal | personal tasks and habits planned after 16:00, nothing after 22:00 |
+| Personal | personal tasks and habits planned after 16:00, nothing after 22:00; **chess** is the exception: inside work hours after 11:00, an hour apart (evening only if no slot) |
 | Missed block | moves to next free slot (or tomorrow), counts against the score, one-line reason |
 | Accountability | block alarms, evening review 21:00, daily score + streak, morning brief email |
 | Today screen | the daily score + streak replaces the current "x of y done" progress line |

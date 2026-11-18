@@ -16,6 +16,11 @@ export const FIXED = ['meeting', 'prep', 'lunch', 'break'];
 export const SCORED = ['task', 'habit', 'personal'];
 export const DAY = { wake: '07:30', workStart: '08:00', workEnd: '16:00', end: '22:00' };
 export const STREAK_PCT = 80;
+// Personal things that belong inside work hours (short breaks): placed after the morning focus time
+// (from WORK_BREAKS_FROM), spread apart, and only after work when no slot fits.
+export const WORK_BREAKS = [/\bchess\b/i, /\bszach/i];
+export const WORK_BREAKS_FROM = '11:00';
+export const isWorkBreak = (title) => WORK_BREAKS.some((re) => re.test(String(title || '')));
 
 const pad = (n) => String(n).padStart(2, '0');
 export const toMin = (hhmm) => {
@@ -158,6 +163,18 @@ export function missBlock(plan, blockId, reason = '', at = nowMin()) {
 // Add a block (without times) in the first free slot from `at`: work inside work hours, anything else
 // after work (or from now, once work is over). Returns { plan, start } or null when nothing fits.
 export function placeBlock(plan, block, length, at = nowMin()) {
+  // chess & co: try work hours first (after the morning focus time, an hour away from another one), else after work
+  if (block.kind !== 'task' && isWorkBreak(block.title)) {
+    const others = plan.blocks.filter((b) => b.status !== 'missed' && isWorkBreak(b.title)).map((b) => ({ ...b, start: fromMin(Math.max(0, toMin(b.start) - 60)), end: fromMin(toMin(b.end) + 60) }));
+    const lo = Math.max(toMin(WORK_BREAKS_FROM), ceil5(at));
+    for (const [s, e] of freeSlots({ blocks: [...plan.blocks, ...others] }, lo, toMin(DAY.workEnd))) {
+      if (e - s < length) continue;
+      const p = structuredClone(plan);
+      p.blocks.push({ status: 'planned', ...block, start: fromMin(s), end: fromMin(s + length), cal: false });
+      p.blocks.sort((x, y) => toMin(x.start) - toMin(y.start));
+      return { plan: p, start: fromMin(s) };
+    }
+  }
   const work = block.kind === 'task' && block.area !== 'personal';
   const lo = work ? toMin(DAY.workStart) : Math.max(toMin(DAY.workEnd), at);
   const hi = work ? toMin(DAY.workEnd) : toMin(DAY.end);

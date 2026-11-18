@@ -50,3 +50,17 @@ assert(pb === null, 'a block longer than any free gap is not placed');
 assert(P.replanFrom(plan, P.toMin('12:00')).plan.blocks.find((b) => b.copyOf === 'report').cal === false, 'replan copies are marked not in calendar');
 assert(P.missBlock(plan, 'report', '', P.toMin('11:20')).plan.blocks.find((b) => b.copyOf === 'report').cal === false, 'missed copies are marked not in calendar');
 process.exitCode = failed ? 1 : 0;
+
+// chess goes inside work hours (after 11:00, an hour apart), else after work
+{
+  const base = { blocks: [B('m', '12:00', '12:30', 'meeting'), B('l', '14:00', '14:30', 'lunch')] };
+  let r1 = P.placeBlock(base, { id: 'c1', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('09:00'));
+  assert(r1?.start === '11:00', 'chess added in the morning goes to 11:00, not the evening: ' + r1?.start);
+  const r2 = P.placeBlock(r1.plan, { id: 'c2', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('09:00'));
+  assert(r2?.start === '12:30' || P.toMin(r2?.start) >= P.toMin('12:20'), 'a second chess block keeps an hour from the first: ' + r2?.start);
+  const late = P.placeBlock(base, { id: 'c3', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('15:50'));
+  assert(late?.start === '16:00', 'chess with no work slot left goes after work: ' + late?.start);
+  const other = P.placeBlock(base, { id: 'p', kind: 'personal', area: 'personal', title: 'Call mom' }, 20, P.toMin('09:00'));
+  assert(other?.start === '16:00', 'other personal tasks still wait until after work: ' + other?.start);
+  process.exitCode = failed ? 1 : 0;
+}
