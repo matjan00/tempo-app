@@ -99,6 +99,21 @@ export async function schedule(fireAt, title, body) {
   }
 }
 
+// "Done? / Missed?" alerts at the end of each block in today's plan (the server reads the synced plan).
+// Same return shape as schedule().
+export async function setBlockAlarms(on) {
+  if (!supported() || Notification.permission !== 'granted') return { ok: true, skipped: true };
+  try {
+    const sub = await subscription(on);
+    if (!sub) return { ok: true };
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Warsaw';
+    await call({ action: 'device', sub: sub.toJSON(), blockAlarms: !!on, tz });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
 // Same return shape as schedule().
 export async function cancel() {
   if (!enabled()) return { ok: true, skipped: true };

@@ -22,6 +22,9 @@ const PUSH_HOSTS = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', '
 const MAX_ROWS = 5000;
 const MAX_ATTEMPTS = 3;
 const TABLE = 'tempo_push_timers';
+const DEVICES = 'tempo_push_devices';
+const SCORED = ['task', 'habit', 'personal'];
+const STALE_S = 600; // a block that ended more than 10 minutes ago is not announced any more
 
 const cors = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
@@ -67,7 +70,69 @@ async function safeEqual(a: string, b: string) {
   return d === 0;
 }
 
+// "now" in a time zone: local date and seconds since local midnight
+function localNow(tz: string, d = new Date()) {
+  let parts: Record<string, string>;
+  try {
+    parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+        .formatToParts(d)
+        .map((p) => [p.type, p.value]),
+    );
+  } catch {
+    return localNow('Europe/Warsaw', d);
+  }
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, sec: +parts.hour * 3600 + +parts.minute * 60 + +parts.second };
+}
+const hhmmSec = (s: unknown) => {
+  const m = /^(d{1,2}):(d{2})$/.exec(String(s ?? ''));
+  return m ? +m[1] * 3600 + +m[2] * 60 : NaN;
+};
+
+// End-of-block alerts: for each phone that wants them, announce today's still-open blocks that just ended,
+// then remember when the next one ends.
+async function blockAlarms() {
+  const now = new Date();
+  const { data: devs, error } = await sb.from(DEVICES).select('*').eq('block_alarms', true).lte('next_at', now.toISOString()).limit(20);
+  if (error || !devs?.length) return 0;
+  let sent = 0;
+  for (const d of devs) {
+    const { date, sec } = localNow(d.tz, now);
+    const { data: rec } = await sb.from('tempo_records').select('data,deleted').eq('kind', 'plan').eq('id', 'd' + date.replace(/-/g, '')).maybeSingle();
+    const blocks: Record<string, any>[] = !rec || rec.deleted || !Array.isArray(rec.data?.blocks) ? [] : rec.data.blocks;
+    const open = blocks.filter((b) => SCORED.includes(b?.kind) && b?.status === 'planned' && Number.isFinite(hhmmSec(b.end)));
+    const sinceSec = Math.max(sec - STALE_S, sec - Math.max(0, Math.round((now.getTime() - new Date(d.checked_until).getTime()) / 1000)));
+    let gone = false;
+    for (const b of open) {
+      const end = hhmmSec(b.end);
+      if (end <= sinceSec || end > sec) continue;
+      try {
+        await webpush.sendNotification(
+          { endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } },
+          JSON.stringify({ kind: 'block', title: clip(`Done? ${b.title || 'block'}`, 80), body: `${b.start}–${b.end} · Done or Missed`, tag: 'tempo-block-' + clip(b.id, 40), date, block: clip(b.id, 64) }),
+          { TTL: 1800, urgency: 'high' },
+        );
+        sent++;
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode ?? 0;
+        console.log('block push failed', code);
+        if (code === 404 || code === 410) gone = true;
+      }
+    }
+    if (gone) {
+      await sb.from(DEVICES).delete().eq('endpoint', d.endpoint);
+      continue;
+    }
+    const next = open.map((b) => hhmmSec(b.end)).filter((e) => e > sec).sort((a, b) => a - b)[0];
+    // nothing left today: look again just after local midnight (tomorrow's plan)
+    const waitS = next !== undefined ? next - sec : 86400 - sec + 60;
+    await sb.from(DEVICES).update({ checked_until: now.toISOString(), next_at: new Date(now.getTime() + waitS * 1000).toISOString() }).eq('endpoint', d.endpoint);
+  }
+  return sent;
+}
+
 async function sendDue() {
+  const blocks = await blockAlarms().catch((e) => (console.error('block alarms', e), 0));
   const nowIso = new Date().toISOString();
   const { data, error } = await sb.from(TABLE).select('*').lte('fire_at', nowIso).order('fire_at', { ascending: true }).limit(50);
   if (error) {
@@ -105,7 +170,7 @@ async function sendDue() {
   );
   // housekeeping: forget timers that were never delivered
   await sb.from(TABLE).delete().lt('fire_at', new Date(Date.now() - 3600_000).toISOString());
-  return { sent: results.filter((x) => x.status === 'fulfilled' && x.value === true).length };
+  return { sent: results.filter((x) => x.status === 'fulfilled' && x.value === true).length, blocks };
 }
 
 Deno.serve(async (req) => {
@@ -135,6 +200,35 @@ Deno.serve(async (req) => {
   if (!sub || !validEndpoint(sub.endpoint)) return json({ error: 'bad subscription' }, 400, origin);
   if (typeof b.token !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(b.token)) return json({ error: 'bad token' }, 400, origin);
   const tokenHash = await sha256Hex(b.token);
+
+  // "Done? / Missed?" alerts at the end of planned blocks: register or update this phone
+  if (b.action === 'device') {
+    const { data: dev, error: dErr } = await sb.from(DEVICES).select('token').eq('endpoint', sub.endpoint).maybeSingle();
+    if (dErr) return json({ error: 'db' }, 500, origin);
+    if (dev && dev.token !== tokenHash) return json({ error: 'not yours' }, 403, origin);
+    if (b.blockAlarms === false) {
+      const { error } = await sb.from(DEVICES).delete().eq('endpoint', sub.endpoint);
+      return error ? json({ error: 'db' }, 500, origin) : json({ ok: true }, 200, origin);
+    }
+    const p256 = b64urlBytes(sub.keys?.p256dh);
+    const auth = b64urlBytes(sub.keys?.auth);
+    if (!p256 || p256.length !== 65 || !auth || auth.length !== 16) return json({ error: 'bad keys' }, 400, origin);
+    if (!dev) {
+      const { count } = await sb.from(DEVICES).select('endpoint', { count: 'exact', head: true });
+      if ((count ?? 0) >= 20) return json({ error: 'busy' }, 503, origin);
+    }
+    let tz = clip(b.tz, 64);
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: tz });
+    } catch {
+      tz = 'Europe/Warsaw';
+    }
+    const { error } = await sb.from(DEVICES).upsert(
+      { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, token: tokenHash, tz: tz || 'Europe/Warsaw', block_alarms: true, checked_until: new Date().toISOString(), next_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { onConflict: 'endpoint' },
+    );
+    return error ? json({ error: 'db' }, 500, origin) : json({ ok: true }, 200, origin);
+  }
 
   const { data: existing, error: selErr } = await sb.from(TABLE).select('token').eq('endpoint', sub.endpoint).maybeSingle();
   if (selErr) return json({ error: 'db' }, 500, origin);

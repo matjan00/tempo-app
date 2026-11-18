@@ -44,7 +44,8 @@ function syncSection() {
     <div class="set-card">
       <div class="set-row"><span>Status</span><span class="set-ver" aria-live="polite">${esc(line)}</span></div>
       <div class="set-btns"><button class="btn ghost set-btn" data-act="sync-now">Sync now</button><button class="btn ghost set-btn" data-act="sync-off">Disconnect</button></div>
-    </div>`;
+    </div>
+    ${push.supported() ? `<div class="set-card"><div class="set-row set-tog"><label><span>Ask “done?” when a block ends</span><span class="switch"><input type="checkbox" data-tog="blockAlarms" ${store.get().settings.blockAlarms ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label><p class="set-hint">At the end of each block in today’s plan you get a notification with Done and Missed buttons, even when to-do is closed.</p></div></div>` : ''}`;
 }
 
 const STEPPERS = [
@@ -325,6 +326,18 @@ export function openSettings() {
       }
     }
     if (k === 'notify' && !t.checked) push.disable();
+    if (k === 'blockAlarms') {
+      if (t.checked) {
+        const p = await push.enable(); // permission + subscription
+        const r = p.ok ? await push.setBlockAlarms(true) : { ok: false, error: p.why };
+        if (!r.ok || r.skipped) {
+          t.checked = false;
+          toast(String(r.error || 'notifications are not allowed for to-do').toLowerCase(), { ms: 8000 });
+          return;
+        }
+        toast('done? alerts are on for your plan blocks');
+      } else push.setBlockAlarms(false);
+    }
     set(k, t.checked);
   });
 }

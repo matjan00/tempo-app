@@ -11,6 +11,8 @@ import * as notes from './notes.js';
 import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
 import { bindLongPress } from './components.js';
 import * as sync from './sync.js';
+import * as day from './day.js';
+import * as push from './push.js';
 
 const TABS = [
   ['today', 'Today', 'sun', today],
@@ -203,3 +205,23 @@ root.dataset.tab = tab;
 render();
 timer.sync();
 sync.start(); // off until a sync key is entered in Settings
+
+// Answers from "Done? / Missed?" block alerts: from the address (app was closed) or a message (app was open)
+function onBlockAction(date, block, act) {
+  if (tab !== 'today') go('today');
+  setTimeout(() => day.blockAction(date, block, act), 150);
+}
+{
+  const q = new URLSearchParams(location.search);
+  const blk = q.get('blk');
+  if (blk && blk.includes('~')) {
+    const [date, block] = blk.split('~');
+    history.replaceState(null, '', location.pathname); // a reload must not answer twice
+    onBlockAction(date, block, q.get('do') || 'open');
+  }
+}
+navigator.serviceWorker?.addEventListener('message', (ev) => {
+  if (ev.data?.type === 'block-action') onBlockAction(ev.data.date, ev.data.block, ev.data.act);
+});
+// keep this phone registered for block alerts (its push address can change)
+if (store.get().settings.blockAlarms) push.setBlockAlarms(true);

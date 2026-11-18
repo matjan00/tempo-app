@@ -254,6 +254,20 @@ function askReason(id) {
   input.addEventListener('keydown', (e) => e.key === 'Enter' && (e.preventDefault(), go()));
 }
 
+// An answer from a block alert (Done / Missed buttons, or a tap on it).
+export function blockAction(date, id, act) {
+  const b = getBlock(date, id);
+  if (!b) return toast('that block is no longer in the plan');
+  if (date !== todayStr()) return openBlock(date, id);
+  if (act === 'done') {
+    if (b.status === 'done') return toast('already ticked');
+    if (b.status === 'missed') return openBlock(date, id);
+    return tick(id);
+  }
+  if (act === 'missed' && b.status === 'planned') return askReason(id);
+  openBlock(date, id);
+}
+
 // Click handling for the Today screen. Returns true if it handled the event.
 export function handleClick(e, rerender) {
   const el = e.target.closest('[data-act]');

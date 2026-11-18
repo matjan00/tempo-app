@@ -20,7 +20,7 @@ const COLS = [
   ['session', 'sessions'],
   ['plan', 'plans'],
 ];
-const LOCAL_SETTINGS = ['notify']; // tied to this device's push subscription, never synced
+const LOCAL_SETTINGS = ['notify', 'blockAlarms']; // tied to this device's push subscription, never synced
 
 const normKey = (k) => String(k || '').toLowerCase().replace(/[\s-]/g, '');
 

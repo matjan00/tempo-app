@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS = {
   keepAwake: true,
   noise: 'off', // off | brown | pink | white
   goal: 4, // daily focus sessions goal
+  blockAlarms: false, // "done?" alert at the end of each plan block (per device, not synced)
 };
 
 const fresh = () => ({

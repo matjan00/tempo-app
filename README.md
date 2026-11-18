@@ -11,7 +11,9 @@ The other is the optional **locked-phone alarm** (Settings → alerts). If you t
 - when the timer ends, plus the notification title and text (for example the task name),
 - a random per-install token that stops other people from cancelling or overwriting your timer.
 
-The server keeps that row only until the alarm has been sent (or an hour after it was due), then deletes it. With sync off, nothing else leaves the device. Turn alerts off in Settings and the app unsubscribes and asks the server to drop your timer. If you never configure push, nothing is sent anywhere.
+The server keeps that row only until the alarm has been sent (or an hour after it was due), then deletes it. With sync off, nothing else leaves the device.
+
+**Block alerts** (Settings → Sync → "Ask done? when a block ends", needs sync): the phone's push subscription, a per-install token hash and its time zone are kept in `tempo_push_devices` until you turn it off (or the push service drops the subscription). The push function reads today's plan from `tempo_records` and sends a "Done?" notification with Done / Missed buttons when an open block ends. Turn alerts off in Settings and the app unsubscribes and asks the server to drop your timer. If you never configure push, nothing is sent anywhere.
 
 ## Commands
 - Preview locally: `node scripts/serve.cjs` then open http://localhost:5195 (set `PORT` to change it)

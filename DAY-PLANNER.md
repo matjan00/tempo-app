@@ -1,6 +1,6 @@
 # Day planner: detailed plan
 
-Status: Phases 1–2 built; Phase 3 planner built and first used for 2026-11-19. Phases 4–6 to do.
+Status: Phases 1–5 built (2026-11-18). Phase 6, the test week, is next.
 
 ## What you get, in one picture
 
@@ -84,7 +84,9 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 - I make a separate calendar called "Plan" for the blocks, so redoing a plan never touches your meetings, and you can hide it with one tap.
 - Colours: deep work, light work, prep, personal and habits each get their own colour.
 
-### Phase 4: alarms
+### Phase 4: alarms (done)
+- Settings → Sync → "Ask done? when a block ends" registers the phone. The push server reads today's plan from the sync table and, when a still-open task/habit/personal block ends, sends a notification with **Done** and **Missed** buttons (works with the app closed, and follows plans the routines write). Done ticks the block; Missed opens the reason sheet.
+- Block *start* alerts come from the Plan calendar instead.
 - The alarm server currently holds one timer per phone. Extend it to hold a day of alarms: block start ("Now: write report until 9:50") and block end ("Done?" with **Done** and **Missed** buttons in the notification).
 - Missed (button, or end passed and not ticked): the block moves to the next free slot or tomorrow, and the reason is asked in the evening review.
 - Nothing after 22:00.

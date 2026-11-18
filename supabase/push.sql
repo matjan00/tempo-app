@@ -17,6 +17,41 @@ alter table public.tempo_push_timers enable row level security; -- no policies: 
 revoke all on public.tempo_push_timers from anon, authenticated;
 create index if not exists tempo_push_timers_fire_at on public.tempo_push_timers (fire_at);
 
+-- Phones that asked for "Done? / Missed?" alerts at the end of each planned block.
+-- The function reads today's plan from tempo_records (sync) and sends an alert when a block that is still
+-- open ends. next_at = when the next block ends, so the cron job only calls the function when needed.
+create table if not exists public.tempo_push_devices (
+  endpoint text primary key,
+  p256dh text not null,
+  auth text not null,
+  token text not null,                         -- sha-256 of the install's token
+  tz text not null default 'Europe/Warsaw',
+  block_alarms boolean not null default true,
+  checked_until timestamptz not null default now(),
+  next_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.tempo_push_devices enable row level security; -- no policies: only the edge function
+revoke all on public.tempo_push_devices from anon, authenticated;
+
+-- A changed plan (from the phone or the planner) may add an earlier block end: look again right away.
+-- Only when sync is set up (tempo_records exists).
+do $trg$
+begin
+  if to_regclass('public.tempo_records') is not null then
+    create or replace function public.tempo_plan_changed() returns trigger language plpgsql security definer set search_path = public as $f$
+    begin
+      update public.tempo_push_devices set next_at = now() where block_alarms and next_at > now();
+      return null;
+    end
+    $f$;
+    drop trigger if exists tempo_plan_changed on public.tempo_records;
+    create trigger tempo_plan_changed after insert or update on public.tempo_records
+      for each row when (new.kind = 'plan') execute function public.tempo_plan_changed();
+  end if;
+end
+$trg$;
+
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
 
@@ -46,7 +81,8 @@ select cron.schedule('tempo-push-due', '10 seconds', $job$
     ),
     body := '{"action":"send-due"}'::jsonb
   )
-  where exists (select 1 from public.tempo_push_timers where fire_at <= now());
+  where exists (select 1 from public.tempo_push_timers where fire_at <= now())
+     or exists (select 1 from public.tempo_push_devices where block_alarms and next_at <= now());
 $job$);
 
 -- the 10-second job would otherwise fill cron.job_run_details forever
