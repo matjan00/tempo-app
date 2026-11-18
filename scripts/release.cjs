@@ -41,7 +41,7 @@ for (const f of list) {
 }
 const hash = h.digest('hex').slice(0, 12);
 
-const sw = fs.readFileSync(swPath, 'utf8');
+const sw = fs.readFileSync(swPath, 'utf8').replace(/\r\n/g, '\n'); // git may check it out with CRLF
 const vm = sw.match(/const VERSION = 'tempo-v(\d+)'/);
 if (!vm) fail("could not find \"const VERSION = 'tempo-vN'\" in docs/sw.js");
 if (!/\/\/ FILES-START[\s\S]*\/\/ FILES-END/.test(sw)) fail('could not find the FILES-START / FILES-END markers in docs/sw.js');
