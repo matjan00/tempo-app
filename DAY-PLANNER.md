@@ -1,6 +1,6 @@
 # Day planner: detailed plan
 
-Status: draft for your approval. Nothing is built yet.
+Status: Phase 1 (sync) and Phase 2 (Day timeline, score, streak) are built. Phases 3–6 to do.
 
 ## What you get, in one picture
 
@@ -68,7 +68,10 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 - I read and write through a key kept in a local `.env` file that's never committed.
 - The README's "nothing leaves the device" section gets rewritten to say what's synced now.
 
-### Phase 2: Day timeline in the app
+### Phase 2: Day timeline in the app (done)
+- Built: `docs/js/plan.js` (plan logic, also usable from scripts; tests in `scripts/test-plan.mjs`), `docs/js/day.js` + `docs/css/day.css` (timeline on Today).
+- A block whose end passed without a tick shows "Not ticked" and counts as not done, but is only moved when you tap Missed (or Replan). Auto-moving would create duplicates whenever you simply forgot to tick; Phase 4's end-of-block alarm asks Done / Missed instead.
+- A missed block's copy ("second try") gives the task another slot but does not count towards the score, so a miss still costs points.
 - New block list for each date: time, title, type (meeting, prep, task, habit, personal), status (planned, done, missed, moved), miss reason.
 - Today screen: timeline with a "now" line, tap a block to mark it done, start the focus timer on it, or mark it missed with a reason.
 - Score + streak replace the progress line. "Replan from now" button.

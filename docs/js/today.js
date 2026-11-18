@@ -6,6 +6,9 @@ import { install, isStandalone } from './install.js';
 import { toast } from './ui.js';
 import { habitRow, handleHabitClick } from './habits.js';
 import { todayStr, DAYS, MONTHS, esc } from './util.js';
+import * as day from './day.js';
+
+let minuteTimer = null;
 
 let showDone = false;
 const bannerHidden = () => { try { return localStorage.getItem('tempo.hideInstall') === '1'; } catch { return false; } };
@@ -29,7 +32,9 @@ export function render(root) {
   const today = todayStr();
   const open = st.tasks.filter((t) => !t.done);
   const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
-  const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
+  const plan = store.getPlan(today);
+  const inPlan = day.plannedTaskIds(today);
+  const todays = open.filter((t) => t.due === today && !inPlan.has(t.id)).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
   const habits = st.habits;
   const habitsDone = habits.filter((h) => h.log[today]).length;
@@ -40,7 +45,7 @@ export function render(root) {
 
   // "unplanned": open tasks without a date
   const unplanned = open.filter((t) => !t.due).slice(0, 3);
-  const empty = !late.length && !todays.length && !habits.length;
+  const empty = !late.length && !todays.length && !habits.length && !plan;
 
   root.innerHTML = `
     <header class="top">
@@ -48,10 +53,11 @@ export function render(root) {
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button>
     </header>
     ${!isStandalone() && !bannerHidden() ? `<div class="install-banner">${icon('download', 18)}<span class="ib-t">install to-do</span><button class="btn primary" data-act="install">install</button><button class="icon-btn" data-act="hideInstall" aria-label="hide install banner">${icon('x', 18)}</button></div>` : ''}
-    ${progress(doneToday.length + habitsDone, total)}
+    ${plan ? day.scoreLine(plan, st.plans, today) : progress(doneToday.length + habitsDone, total)}
+    ${day.section(today)}
     ${section('Overdue', late, 'late')}
     ${habits.length ? `<section class="sec"><h2>Habits<span>${habitsDone}/${habits.length}</span></h2>${habits.map((h) => habitRow(h, today)).join('')}</section>` : ''}
-    ${section('Today', todays, '', { showDue: false }) /* the heading already says "today" */}
+    ${section(plan ? 'Also due today' : 'Today', todays, '', { showDue: false }) /* the heading already says "today" */}
     ${empty ? `<div class="empty">${icon('leaf', 34)}<p>${doneToday.length ? 'all clear. enjoy the rest of your day.' : 'nothing planned for today.'}</p><small>${unplanned.length ? 'add a task below, or plan one of your unplanned tasks.' : 'type a task in the bar below. words like “tomorrow” or “#gym” are picked up automatically.'}</small></div>` : ''}
     ${empty && unplanned.length ? `<section class="sec"><h2>unplanned tasks</h2>${unplanned.map((t) => `<div class="pull" data-id="${t.id}">${taskRow(t)}<button class="chip" data-act="plan" aria-label="do today: ${esc(t.title)}">do today</button></div>`).join('')}</section>` : ''}
     ${doneToday.length ? `<section class="sec dim"><h2 class="hbtn"><button class="h3btn" data-act="toggleDone" aria-expanded="${showDone}">Done today<span>${doneToday.length}</span>${icon(showDone ? 'chevD' : 'chevR', 16)}</button></h2>${showDone ? doneToday.map((t) => taskRow(t)).join('') : ''}</section>` : ''}
@@ -59,7 +65,12 @@ export function render(root) {
   `;
 
   bindComposer(root, () => ({ due: today }));
+  // the timeline's "now" moves: redraw at the next minute while today has a plan
+  clearTimeout(minuteTimer);
+  if (plan) minuteTimer = setTimeout(() => root.dataset.tab === 'today' && store.emit(), 60000 - (Date.now() % 60000) + 200);
+
   root.onclick = (e) => {
+    if (day.handleClick(e, () => render(root))) return;
     if (handleHabitClick(e)) return;
     if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
     const a = e.target.closest('[data-act]')?.dataset.act;

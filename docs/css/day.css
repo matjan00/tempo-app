@@ -1,0 +1,44 @@
+/* Day timeline on Today (day.js). Loaded after plain.css. */
+
+/* score line */
+.day-score .prog-t { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; }
+.day-score .prog-t b { font-weight: 600; color: var(--text); }
+.day-score.low .prog-t b { color: var(--danger); }
+.day-score .prog-t .ic { color: var(--muted); margin-left: 2px; }
+.day-score .prog-bar i.on { transition: width 0.4s; }
+
+/* header: Today's plan | Tomorrow   [Replan from now] */
+.day-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; margin-bottom: 2px; }
+.day-tabs { display: flex; gap: 14px; min-width: 0; }
+.day-tab { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 500; color: var(--muted); }
+.day-tab.on { color: var(--text); }
+.day-tab:only-child { pointer-events: none; }
+.day-replan { min-height: 32px; padding: 4px 10px; font-size: 13px; color: var(--text); }
+.day-empty { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+
+/* rows: time · check · title */
+.blk { gap: 10px; }
+.blk-time { flex: none; width: 40px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.blk-dot { flex: none; width: 22px; height: 22px; display: grid; place-items: center; }
+.blk-dot::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--muted); }
+.blk.k-meeting .blk-dot::before { background: var(--text); width: 10px; height: 10px; }
+.blk.k-meeting .t-title { font-weight: 500; }
+.blk.k-prep .t-title, .blk.k-lunch .t-title, .blk.k-break .t-title { color: var(--muted); }
+.blk.k-prep, .blk.k-lunch, .blk.k-break { min-height: 44px; padding-top: 6px; padding-bottom: 6px; }
+.blk .check:disabled { opacity: 0.45; }
+
+/* now: a soft accent wash and an accent time */
+.blk.now { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 10px; margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-bottom-color: transparent; }
+.blk.now .blk-time, .m.now-m { color: var(--accent-text); font-weight: 600; }
+
+/* missed / not ticked */
+.blk.missed .t-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+.m.miss { color: var(--danger); }
+
+/* block sheet + reason sheet */
+.blk-info { margin: -8px 0 12px; font-size: 14px; color: var(--muted); }
+.blk-why { margin: -4px 0 12px; font-size: 14px; color: var(--danger); }
+.blk-reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.blk-reasons .chip { font-size: 14px; min-height: 34px; }
+.blk-reason { margin-bottom: 12px; }
+.qa-sheet .row-btns .btn { width: 100%; }

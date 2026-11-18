@@ -33,6 +33,9 @@ This creates the table and a 10-second cron job, stores the secrets, deploys the
 
 Function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`, `VAPID_SUBJECT` (contact `mailto:`/`https:` URL; a placeholder is used if missing), and optionally `ALLOW_LOCAL=1` to accept calls from `http://localhost:5195` during development. The cron secret is kept in Supabase Vault for the cron job. Browser calls are only accepted from the published site's origin.
 
+## Day plans
+One plan per date (`plans` in the saved data, `plan` records in sync), shown as a timeline on Today with a score and streak. Shape and rules are documented at the top of `docs/js/plan.js`. Tests: `node scripts/test-plan.mjs`.
+
 ## Sync (Supabase)
 Files: `supabase/functions/tempo-sync/index.ts` (function), `supabase/sync.sql` (table + `tempo_sync_write` function), `scripts/setup-sync.cjs` (installer), `scripts/sync.cjs` (read/write from scripts), `docs/js/sync.js` (app side).
 

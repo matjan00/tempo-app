@@ -1,5 +1,6 @@
 // The single source of truth. Everything lives in localStorage on the phone (no account, no server).
 import { uid, todayStr, addDays, parseYmd, ymd } from './util.js';
+import { cleanPlan, planFor, planId } from './plan.js';
 
 const KEY = 'tempo.v1';
 const REV_KEY = KEY + '.rev'; // tiny companion key: lets a window cheaply notice that another window saved newer data
@@ -106,7 +107,7 @@ function migrate(s) {
   delete out.projects;
   for (const k of ['tasks', 'habits', 'pages', 'sessions', 'plans']) out[k] = arr(out[k]).filter(isObj);
   const planIds = new Set();
-  out.plans = out.plans.map((p) => ({ ...p, id: cleanId(p.id, planIds) }));
+  out.plans = out.plans.filter((p) => YMD.test(p.date)).map((p) => cleanPlan({ ...p, id: cleanId(p.id, planIds) }));
   const taskIds = new Set(), pageIds = new Set(), habitIds = new Set();
   // open daily tasks are habits now: they come back every day instead of piling up as overdue
   const dailies = out.tasks.filter((t) => t.repeat === 'daily' && t.done !== true);
@@ -484,6 +485,19 @@ export function habitStreak(h, today = todayStr()) {
     prev = k;
   }
   return { cur, best };
+}
+
+// ---------- day plans ----------
+export const getPlan = (date) => planFor(state.plans, date);
+
+// Replace the plan for plan.date (or add it).
+export function setPlan(plan) {
+  mutate((s) => {
+    const clean = cleanPlan({ ...plan, id: plan.id || planId(plan.date) });
+    const i = s.plans.findIndex((p) => p.date === plan.date);
+    if (i >= 0) s.plans[i] = clean;
+    else s.plans.push(clean);
+  });
 }
 
 // ---------- pages ----------
