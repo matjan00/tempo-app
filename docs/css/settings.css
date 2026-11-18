@@ -14,11 +14,6 @@
 .set-swatches{display:flex;gap:12px;justify-content:space-between;padding:2px 4px}
 .set-sw{width:40px;height:40px;border-radius:50%;border:0;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 .set-sw.on{outline:2.5px solid var(--text);outline-offset:3px}
-.set-step{display:flex;align-items:center;gap:4px}
-.set-step button{width:44px;height:44px;border-radius:50%;border:0;background:var(--surface);color:var(--text);font-size:20px;line-height:1;cursor:pointer}
-.set-step button:active{background:var(--line)}
-.set-step output{min-width:78px;text-align:center;font-size:16px}
-.set-step small{color:var(--muted);font-size:13px}
 .set-btns{display:flex;gap:8px}
 .set-btns .set-btn{flex:1}
 .set-btn{width:100%}

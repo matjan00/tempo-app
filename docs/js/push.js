@@ -126,10 +126,10 @@ export async function cancel() {
   }
 }
 
-// The service worker tells us when the browser rotated the subscription. The next schedule() picks up
-// the fresh one automatically; this just makes sure one exists.
+// The service worker tells us when the browser rotated the subscription: send the fresh one to the server,
+// so block alerts keep reaching this phone (the old address no longer works).
 try {
   navigator.serviceWorker?.addEventListener('message', (ev) => {
-    if (ev.data?.type === 'push-subscription-changed' && enabled()) subscription(true).catch(() => {});
+    if (ev.data?.type === 'push-subscription-changed' && store.get().settings.blockAlarms) setBlockAlarms(true);
   });
 } catch {}

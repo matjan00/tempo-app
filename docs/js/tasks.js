@@ -52,6 +52,9 @@ function bodyHtml() {
   return { html: body, open: open.length };
 }
 
+// Redraw through the app (store listeners), which keeps half-typed quick-add / search text, focus and scroll.
+const redraw = () => store.emit();
+
 export function render(root) {
   clearTimeout(searchTimer); // a redraw from an older render must not land on this one
   const body = bodyHtml();
@@ -92,7 +95,7 @@ export function render(root) {
       if (s.value) s.value = '';
       else searching = false;
       search = '';
-      render(root);
+      redraw();
       if (!searching) root.querySelector('[data-act=search]')?.focus();
     });
     if (!search && searching) setTimeout(() => s.focus(), 0);
@@ -101,10 +104,10 @@ export function render(root) {
   root.onclick = (e) => {
     if (handleTaskClick(e)) return;
     const f = e.target.closest('[data-f]');
-    if (f) return (filter = f.dataset.f), render(root);
+    if (f) return (filter = f.dataset.f), redraw();
     const a = e.target.closest('[data-act]')?.dataset.act;
-    if (a === 'search') return (searching = !searching), searching || (search = ''), render(root);
-    if (a === 'toggleDone') return (showDone = !showDone), (doneLimit = 50), render(root);
-    if (a === 'moreDone') return (doneLimit += 50), render(root);
+    if (a === 'search') return (searching = !searching), searching || (search = ''), redraw();
+    if (a === 'toggleDone') return (showDone = !showDone), (doneLimit = 50), redraw();
+    if (a === 'moreDone') return (doneLimit += 50), redraw();
   };
 }

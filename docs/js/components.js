@@ -90,7 +90,7 @@ export function handleTaskClick(e) {
 }
 
 // ---------- long-press quick actions ----------
-// Press and hold a task row (or right-click it) to reschedule, focus or delete it without opening it.
+// Press and hold a task row (or right-click it) to reschedule or delete it without opening it.
 const HOLDABLE = '.task[data-id]';
 export function bindLongPress(root) {
   let timer = null;
@@ -104,8 +104,8 @@ export function bindLongPress(root) {
     // a new press clears the "this click ends a long-press" mark of the previous one
     root.querySelectorAll('[data-held]').forEach((x) => delete x.dataset.held);
     const row = e.target.closest(HOLDABLE);
-    // touch / pen only (a mouse uses right-click); the checkbox and play button keep their plain tap
-    if (!row || e.button > 0 || (e.pointerType !== 'touch' && e.pointerType !== 'pen') || e.target.closest('.check, .t-play')) return;
+    // touch / pen only (a mouse uses right-click); the checkbox keeps its plain tap
+    if (!row || e.button > 0 || (e.pointerType !== 'touch' && e.pointerType !== 'pen') || e.target.closest('.check')) return;
     cancel();
     start = { x: e.clientX, y: e.clientY };
     row.classList.add('pressing');
@@ -468,7 +468,7 @@ export function openTask(id) {
   $('#ts-dur-in').addEventListener('change', (e) => {
     const v = Math.round(Number(e.target.value) / 5) * 5;
     set({ dur: v >= 5 && v <= 480 ? v : 0 });
-    if (!(v >= 5 && v <= 480)) e.target.value = '';
+    e.target.value = v >= 5 && v <= 480 ? (DURS.includes(v) ? '' : v) : ''; // show what was saved (rounded to 5; a chip lights up instead)
     paintDur();
   });
 

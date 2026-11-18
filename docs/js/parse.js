@@ -57,10 +57,12 @@ export function parseQuick(input, ignore = new Set()) {
       if (r.est) return false;
       r.est = Math.min(20, Number(n));
     });
-  // how long: "30m", "45 min", "1h", "1.5h", "1h30"
+  // how long: "30m", "45 min", "1h", "1.5h", "1h30", "1h 30"
   if (on('dur'))
-    take(/\s(\d{1,2}(?:[.,]\d)?)\s?(h|hr|hrs|godz)(?:\s?(\d{1,2})\s?(?:m|min)?)?(?=[\s.,;!?]|$)|\s(\d{1,3})\s?(m|min|mins|minutes)(?=[\s.,;!?]|$)/i, (m, h, _u, hm, mins) => {
+    // minutes after the hours: "1h30", "1h 30m", or a bare "1h 30" (10–55 only, so "1h 5 tickets" keeps its 5)
+    take(/\s(\d{1,2}(?:[.,]\d)?)\s?(h|hr|hrs|godz)(?:(\d{1,2})(?:m|min)?|\s?(\d{1,2})\s?(?:m|min)|\s([1-5][05]))?(?=[\s.,;!?]|$)|\s(\d{1,3})\s?(m|min|mins|minutes)(?=[\s.,;!?]|$)/i, (m, h, _u, hmA, hmB, hmC, mins) => {
       if (r.dur) return false;
+      const hm = hmA ?? hmB ?? hmC;
       const v = h !== undefined ? Math.round(parseFloat(h.replace(',', '.')) * 60) + Number(hm || 0) : Number(mins);
       if (!(v >= 5 && v <= 480)) return false;
       r.dur = v;

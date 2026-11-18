@@ -126,10 +126,11 @@ export function section(today = todayStr()) {
   </section>`;
 }
 
-// Task ids that today's plan already covers (Today hides them from its own task list).
+// Task ids that today's plan still covers (Today hides them from its own task list). A missed block no longer
+// does: the task is listed again (and can be added back), like addToPlan() allows.
 export function plannedTaskIds(today = todayStr()) {
   const p = store.getPlan(today);
-  return new Set((p?.blocks || []).map((b) => b.taskId).filter(Boolean));
+  return new Set((p?.blocks || []).filter((b) => b.status !== 'missed').map((b) => b.taskId).filter(Boolean));
 }
 
 // ---------- actions ----------
@@ -153,7 +154,7 @@ function tick(id) {
   const b = getBlock(today, id);
   if (!plan || !b) return;
   haptic();
-  if (b.status === 'done') return setStatus(today, id, 'planned');
+  if (b.status === 'done') return untick(id);
   setStatus(today, id, 'done');
   let undoTask = null;
   if (b.taskId) {
@@ -177,6 +178,21 @@ function tick(id) {
       undoTask?.();
     },
   });
+}
+
+// Un-tick a block: the task / habit that ticking it finished is reopened too (unless another done block covers it).
+function untick(id) {
+  const today = todayStr();
+  const plan = store.getPlan(today);
+  const b = getBlock(today, id);
+  if (!plan || !b) return;
+  setStatus(today, id, 'planned');
+  const other = (key) => plan.blocks.some((x) => x.id !== id && x[key] === b[key] && x.status === 'done');
+  const t = b.taskId && store.getTask(b.taskId);
+  // only a task this very tick finished (done at the same moment), not one completed some other way
+  if (t) {
+    if (t.done && !other('taskId') && Math.abs((t.doneAt || 0) - (b.doneAt || 0)) < 5000) store.setDone(t.id, false);
+  } else if (b.habitId && !other('habitId') && store.getHabit(b.habitId)?.log[today]) store.toggleHabit(b.habitId, today);
 }
 
 // Missed: keep the reason, move a copy to the next free slot today, or the task to tomorrow.
@@ -260,7 +276,7 @@ function openBlock(date, id) {
     if (!k) return;
     rec.close();
     if (k === 'done') tick(id);
-    else if (k === 'undone') setStatus(date, id, 'planned');
+    else if (k === 'undone') untick(id);
     else if (k === 'skip') miss(id, 'didn’t happen');
     else if (k === 'miss') setTimeout(() => askReason(id), 60);
     else if (k === 'task') setTimeout(() => openTask(b.taskId), 60);

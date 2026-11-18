@@ -208,9 +208,9 @@ addEventListener('keydown', (e) => {
   }
 });
 
-// Toasts sit at the bottom, in thumb reach: just above the quick-add bar (or the tab bar / the notes toolbar),
+// Toasts sit at the bottom, in thumb reach: just above the quick-add bar (or the tab bar),
 // never on top of them. Newest at the bottom, at most 3 at once.
-const DOCKS = '.pg-dock.on, .composer, #nav';
+const DOCKS = '.composer, #nav';
 let watched = null;
 const resizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(() => placeToasts()) : null;
 export function placeToasts() {

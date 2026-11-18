@@ -1,5 +1,5 @@
 # to-do
-Tasks, Notion-style notes and a Pomodoro timer in one minimal phone app (PWA).
+Tasks, habits and a day plan in one minimal phone app (PWA).
 
 ## Your data
 Tasks, notes and settings are stored on the device (browser storage). There is no account. Two optional features send data to your own Supabase project:

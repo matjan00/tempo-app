@@ -64,3 +64,32 @@ process.exitCode = failed ? 1 : 0;
   assert(other?.start === '16:00', 'other personal tasks still wait until after work: ' + other?.start);
   process.exitCode = failed ? 1 : 0;
 }
+
+// the cloud planner (buildPlan; nothing is read from or written to the server here)
+{
+  const { buildPlan } = await import('./plan-day.mjs');
+  const date = '2026-11-19';
+  const T = (id, title, area, extra = {}) => ({ id, title, area, done: false, prio: 0, created: 1, due: date, ...extra });
+  const overlaps = (p) => p.blocks.some((a, i) => p.blocks.some((b, j) => j > i && P.toMin(a.start) < P.toMin(b.end) && P.toMin(b.start) < P.toMin(a.end)));
+  const empty = buildPlan({ date });
+  assert(empty.plan.blocks.length === 1 && empty.plan.blocks[0].kind === 'lunch', 'a day with nothing in it gets just lunch');
+  const b2b = buildPlan({ date, meetings: [{ title: 'A', start: '09:00', end: '10:00' }, { title: 'B', start: '10:00', end: '11:00' }, { title: 'Long', start: '12:30', end: '15:00' }], tasks: [T('huge', 'Huge', 'work', { dur: 240 }), T('s', 'Small', 'work', { dur: 30 })] });
+  assert(!overlaps(b2b.plan), 'back-to-back meetings: nothing overlaps');
+  assert(b2b.plan.blocks.find((b) => b.kind === 'lunch')?.start === '15:00', 'lunch slides past a meeting that sits on it: ' + b2b.plan.blocks.find((b) => b.kind === 'lunch')?.start);
+  assert(b2b.overflow.some((o) => o.task.id === 'huge'), 'a task longer than any gap is listed as overflow');
+  assert(!b2b.plan.blocks.some((b) => b.id === 'p2'), 'no prep squeezed between back-to-back meetings');
+  const chess = buildPlan({ date, tasks: [T('c', 'Chess', 'personal', { dur: 20 }), T('w', 'Report', 'work', { prio: 3 })] });
+  const cb = chess.plan.blocks.find((b) => b.taskId === 'c');
+  assert(cb && P.toMin(cb.start) >= P.toMin('11:00') && P.toMin(cb.end) <= P.toMin('16:00') && !overlaps(chess.plan), 'chess goes inside work hours after 11:00: ' + cb?.start);
+  assert(chess.plan.blocks.every((b) => b.cal === true), 'every planned block is marked as in the calendar');
+}
+
+// quick-add durations (docs/js/parse.js)
+{
+  const { parseQuick } = await import('../docs/js/parse.js');
+  const q = (s) => parseQuick(s);
+  assert(q('read 1h30').dur === 90 && q('read 1h 30').dur === 90 && q('read 1h 30m').dur === 90, '1h30 / 1h 30 / 1h 30m are 90 minutes');
+  assert(q('buy 1h 5 tickets').dur === 60 && q('buy 1h 5 tickets').title === 'buy 5 tickets', 'a small count after the hours stays in the title: ' + JSON.stringify(q('buy 1h 5 tickets')));
+  assert(q('gym 45m tomorrow').dur === 45 && q('gym 45m tomorrow').title === 'gym', '45m is picked up');
+  process.exitCode = failed ? 1 : 0;
+}

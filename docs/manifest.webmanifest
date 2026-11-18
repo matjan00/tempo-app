@@ -3,7 +3,7 @@
   "name": "to-do",
   "lang": "en",
   "short_name": "to-do",
-  "description": "tasks, notes and a focus timer in one app.",
+  "description": "tasks, habits and a day plan in one app.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

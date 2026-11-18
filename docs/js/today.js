@@ -22,6 +22,9 @@ function progress(done, total) {
   return `<div class="prog"><p class="prog-t">${done} of ${total} done</p>${segs}</div>`;
 }
 
+// Redraw through the app (store listeners), which keeps half-typed quick-add / search text, focus and scroll.
+const redraw = () => store.emit();
+
 export function render(root) {
   const st = store.get();
   const today = todayStr();
@@ -32,10 +35,9 @@ export function render(root) {
   const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
-  // habits that have a block in the plan on screen (today's, or tomorrow's in the evening) are only shown there;
-  // ticking a block ticks the habit, and the Habits tab still has all of them
-  const shownPlan = plan || store.getPlan(addDays(today, 1));
-  const planHabits = new Set((shownPlan?.blocks || []).map((b) => b.habitId).filter(Boolean));
+  // habits that have a block in today's plan are only shown there; ticking the block ticks the habit, and the
+  // Habits tab still has all of them. (A block in tomorrow's plan is tomorrow's habit: today's still needs ticking here.)
+  const planHabits = new Set((plan?.blocks || []).filter((b) => b.status !== 'missed').map((b) => b.habitId).filter(Boolean)); // a missed block can't be ticked: list the habit again
   const habits = st.habits.filter((h) => !planHabits.has(h.id));
   const habitsDone = habits.filter((h) => h.log[today]).length;
   const total = late.length + todays.length + doneToday.length + habits.length;
@@ -72,14 +74,14 @@ export function render(root) {
   if (plan) minuteTimer = setTimeout(() => root.dataset.tab === 'today' && store.emit(), 60000 - (Date.now() % 60000) + 200);
 
   root.onclick = (e) => {
-    if (day.handleClick(e, () => render(root))) return;
+    if (day.handleClick(e, () => redraw())) return;
     if (handleHabitClick(e)) return;
     if (handleTaskClick(e)) return;
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'settings') openSettings();
     if (a === 'install') install();
-    if (a === 'hideInstall') { try { localStorage.setItem('tempo.hideInstall', '1'); } catch {} render(root); }
-    if (a === 'toggleDone') (showDone = !showDone), render(root);
+    if (a === 'hideInstall') { try { localStorage.setItem('tempo.hideInstall', '1'); } catch {} redraw(); }
+    if (a === 'toggleDone') (showDone = !showDone), redraw();
     if (a === 'plan') {
       const id = e.target.closest('.pull').dataset.id;
       store.updateTask(id, { due: today });

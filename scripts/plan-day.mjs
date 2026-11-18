@@ -249,7 +249,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       tasks: of('task'),
       habits: of('habit'),
       prevPlan: planFor(plans, addDays(date, -1)),
-      focus: of('settings')[0]?.focus || 25,
+      // focus stays 25: the focus timer (and its length setting) is gone; "*2" in the app means 2 x 25 min
     });
     console.log(summary(result));
     if (arg('events')) fs.writeFileSync(arg('events'), JSON.stringify(calendarEvents(result.plan), null, 2));

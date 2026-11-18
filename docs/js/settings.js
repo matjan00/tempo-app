@@ -1,4 +1,4 @@
-// Settings sheet: appearance, timer, toggles, data backup, about.
+// Settings sheet: appearance, sync, data backup, help, about.
 import * as store from './store.js';
 import * as theme from './theme.js';
 import { openSheet, sheetHeader, closeBtn, confirmDialog, toast, focusSnapshot, focusRestore } from './ui.js';
@@ -28,7 +28,7 @@ function syncSection() {
   if (!st.connected)
     return `<h3 class="set-h">Sync</h3>
     <div class="set-card">
-      <p class="set-hint">Keeps a copy of your tasks, habits and notes on your own server, so Claude can plan your day. Paste the sync key printed by setup-sync.</p>
+      <p class="set-hint">Keeps a copy of your tasks, habits and day plans on your own server, so Claude can plan your day. Paste the sync key printed by setup-sync.</p>
       <input class="field set-key" data-synckey type="text" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx-xxxx" aria-label="Sync key">
       <button class="btn primary set-btn" data-act="sync-connect">Connect</button>
     </div>`;
@@ -136,7 +136,7 @@ async function readBackup(file) {
 async function doImport(file) {
   const { data, error } = await readBackup(file);
   if (error) return toast(error, { ms: 6000 });
-  const ok = await confirmDialog('this replaces all current tasks and notes with the backup.', { ok: 'replace my data', title: 'import backup?' });
+  const ok = await confirmDialog('this replaces all current tasks, habits and plans with the backup.', { ok: 'replace my data', title: 'import backup?' });
   if (!ok) return;
   // safety copy of what is there now: kept in this phone's storage and offered as "undo" below
   const before = JSON.stringify(store.get());
