@@ -289,15 +289,15 @@ export function toast(msg, { action, onAction, ms } = {}) {
 }
 
 // "cancel" is the safe, visually primary choice; the destructive one is outlined in red and kept apart.
-export function confirmDialog(message, { ok = 'delete', danger = true, title = 'are you sure?' } = {}) {
+export function confirmDialog(message, { ok = 'delete', cancel = 'cancel', danger = true, title = 'are you sure?' } = {}) {
   return new Promise((resolve) => {
     let answered = false;
     const rec = openSheet(
       `<div class="confirm"><h2>${esc(title)}</h2><p>${esc(message)}</p>
         <div class="row-btns confirm-btns">${
           danger
-            ? `<button class="btn danger" data-r="1">${esc(ok)}</button><button class="btn safe" data-r="0">cancel</button>`
-            : `<button class="btn ghost" data-r="0">cancel</button><button class="btn primary" data-r="1">${esc(ok)}</button>`
+            ? `<button class="btn danger" data-r="1">${esc(ok)}</button><button class="btn safe" data-r="0">${esc(cancel)}</button>`
+            : `<button class="btn ghost" data-r="0">${esc(cancel)}</button><button class="btn primary" data-r="1">${esc(ok)}</button>`
         }</div></div>`,
       { cls: 'small', focus: '[data-r="0"]', onClose: () => !answered && resolve(false) }
     );

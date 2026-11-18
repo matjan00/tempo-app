@@ -34,6 +34,7 @@ const fresh = () => ({
   habits: [],
   pages: [],
   sessions: [],
+  plans: [], // day plans (one per date), filled by the day planner
   settings: { ...DEFAULT_SETTINGS },
   timer: { mode: 'focus', running: false, endAt: null, remaining: null, startedAt: null, taskId: null, cycle: 0 },
 });
@@ -103,7 +104,9 @@ function migrate(s) {
     return p && /work|prac|job|office/i.test(String(p.name)) ? 'work' : 'personal';
   };
   delete out.projects;
-  for (const k of ['tasks', 'habits', 'pages', 'sessions']) out[k] = arr(out[k]).filter(isObj);
+  for (const k of ['tasks', 'habits', 'pages', 'sessions', 'plans']) out[k] = arr(out[k]).filter(isObj);
+  const planIds = new Set();
+  out.plans = out.plans.map((p) => ({ ...p, id: cleanId(p.id, planIds) }));
   const taskIds = new Set(), pageIds = new Set(), habitIds = new Set();
   // open daily tasks are habits now: they come back every day instead of piling up as overdue
   const dailies = out.tasks.filter((t) => t.repeat === 'daily' && t.done !== true);
@@ -146,10 +149,12 @@ function migrate(s) {
     if (!n.blocks.length) n.blocks.push(newBlock());
     return n;
   });
+  const sessionIds = new Set();
   out.sessions = out.sessions
     .filter((x) => Number.isFinite(x.end))
     .map((x) => {
       const o = { ...x, min: Math.max(0, num(x.min, 0)) };
+      o.id = cleanId(x.id ?? 's' + x.end, sessionIds); // old sessions had no id; sync needs one
       o.area = x.area === 'work' || x.area === 'personal' ? x.area : x.project ? areaOfProject(x.project) : null;
       delete o.project;
       return o;
@@ -205,6 +210,7 @@ function write() {
     localStorage.setItem(KEY, JSON.stringify(state));
     localStorage.setItem(REV_KEY, String(state.rev));
     setSaveFailed(false);
+    window.dispatchEvent(new Event('store-saved')); // sync.js notices what changed
   } catch (e) {
     console.warn('Could not save', e);
     setSaveFailed(true); // the next save retries
@@ -257,6 +263,19 @@ export function replaceAll(data) {
   // a running timer from a backup would log a phantom session the moment it "ends": pause it instead
   const t = next.timer;
   if (t.running) Object.assign(t, { running: false, remaining: Math.max(0, t.endAt - Date.now()), endAt: null });
+  state = next;
+  flush();
+  emit();
+}
+
+// Changes that came from the sync server: applied to a copy, cleaned up by migrate() (so a bad record
+// can't break the screens), saved right away. Unlike replaceAll() a running timer is left alone.
+export function applyRemote(fn) {
+  const copy = JSON.parse(JSON.stringify(state));
+  fn(copy);
+  const next = migrate(copy);
+  next.rev = state.rev || 0;
+  next.timer = state.timer;
   state = next;
   flush();
   emit();

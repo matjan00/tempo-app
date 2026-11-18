@@ -10,6 +10,7 @@ import * as focus from './focus.js';
 import * as notes from './notes.js';
 import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
 import { bindLongPress } from './components.js';
+import * as sync from './sync.js';
 
 const TABS = [
   ['today', 'Today', 'sun', today],
@@ -201,3 +202,4 @@ if (store.loadedCorrupt) toast('your saved data could not be read, so the app st
 root.dataset.tab = tab;
 render();
 timer.sync();
+sync.start(); // off until a sync key is entered in Settings

@@ -6,11 +6,46 @@ import { esc, ymd } from './util.js';
 import { icon } from './icons.js';
 import { VERSION } from './version.js';
 import * as push from './push.js';
+import * as sync from './sync.js';
 import { install as runInstall, isStandalone, onInstallChange } from './install.js';
 
 let current = null; // open sheet record
 
 onInstallChange(() => current && !current.closed && draw());
+addEventListener('sync-status', () => current && !current.closed && draw());
+
+const ago = (t) => {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h} h ago` : new Date(t).toLocaleDateString();
+};
+
+function syncSection() {
+  if (!sync.configured()) return '';
+  const st = sync.status();
+  if (!st.connected)
+    return `<h3 class="set-h">Sync</h3>
+    <div class="set-card">
+      <p class="set-hint">Keeps a copy of your tasks, habits and notes on your own server, so Claude can plan your day. Paste the sync key printed by setup-sync.</p>
+      <input class="field set-key" data-synckey type="text" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx-xxxx" aria-label="Sync key">
+      <button class="btn primary set-btn" data-act="sync-connect">Connect</button>
+    </div>`;
+  const waiting = st.pending ? ` · ${st.pending} waiting` : '';
+  const line =
+    st.err === 'key' ? 'key refused. disconnect and enter it again.'
+    : st.err === 'offline' ? `offline${waiting}`
+    : st.err ? `last sync failed, retrying${waiting}`
+    : st.busy ? 'syncing…'
+    : st.last ? `synced ${ago(st.last)}${waiting}`
+    : 'not synced yet';
+  return `<h3 class="set-h">Sync</h3>
+    <div class="set-card">
+      <div class="set-row"><span>Status</span><span class="set-ver" aria-live="polite">${esc(line)}</span></div>
+      <div class="set-btns"><button class="btn ghost set-btn" data-act="sync-now">Sync now</button><button class="btn ghost set-btn" data-act="sync-off">Disconnect</button></div>
+    </div>`;
+}
 
 const STEPPERS = [
   { k: 'focus', label: 'Focus', min: 5, max: 90, step: 5, unit: 'min' },
@@ -74,9 +109,10 @@ function html() {
     <h3 class="set-h">Timer</h3>
     <div class="set-card">${steps}</div>
     <div class="set-card">${tog}${test}</div>
+    ${syncSection()}
     <h3 class="set-h">Data</h3>
     <div class="set-card">
-      <p class="set-hint">Everything is stored only on this phone. Export a backup now and then.</p>
+      <p class="set-hint">${sync.connected() ? 'Stored on this phone and synced to your own server.' : 'Everything is stored only on this phone.'} Export a backup now and then.</p>
       <div class="set-btns"><button class="btn ghost set-btn" data-act="export">Export backup</button><button class="btn ghost set-btn" data-act="import">Import backup</button></div>
       <input type="file" accept="application/json,.json" hidden data-file>
       <div class="set-danger">
@@ -208,6 +244,36 @@ export function openSettings() {
     if (act === 'export') doExport();
     else if (act === 'import') body.querySelector('[data-file]').click();
     else if (act === 'install') runInstall();
+    else if (act === 'sync-connect') {
+      const btn = e.target.closest('[data-act]');
+      const key = body.querySelector('[data-synckey]')?.value || '';
+      btn.disabled = true;
+      try {
+        const c = await sync.check(key);
+        if (!c.ok) return toast(c.why, { ms: 7000 });
+        let mode = 'merge';
+        if (c.serverHasData) {
+          const replace = await confirmDialog('your server already has synced tasks. take them and drop what is on this device, or keep both?', {
+            title: 'server already has data',
+            ok: 'use server data',
+            cancel: 'keep both',
+            danger: false,
+          });
+          if (replace) mode = 'replace';
+        }
+        const st = await sync.connect(key, mode);
+        toast(st.err ? 'connected, but the first sync failed. it retries every minute.' : 'connected. your tasks are synced.', { ms: 6000 });
+      } finally {
+        btn.disabled = false;
+        if (sync.connected()) draw(); // on a refused key keep the field as typed, so it can be fixed
+      }
+    }
+    else if (act === 'sync-now') sync.syncNow();
+    else if (act === 'sync-off') {
+      const ok = await confirmDialog('this device stops syncing. your data stays on the phone and on the server.', { title: 'stop syncing?', ok: 'disconnect', danger: false });
+      if (ok) sync.disconnect();
+      draw();
+    }
     else if (act === 'testpush') {
       let r;
       try {
@@ -222,6 +288,7 @@ export function openSettings() {
     else if (act === 'reset') {
       const ok = await confirmDialog('all tasks, habits, notes and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
       if (ok) {
+        sync.disconnect(); // otherwise the wipe would be synced as "delete everything" on the server too
         store.resetAll(); // stops the app from saving the old data back while it reloads
         location.reload();
       }
