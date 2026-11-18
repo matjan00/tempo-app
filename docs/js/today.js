@@ -5,18 +5,13 @@ import { icon } from './icons.js';
 import { install, isStandalone } from './install.js';
 import { toast } from './ui.js';
 import { habitRow, handleHabitClick } from './habits.js';
-import { todayStr, DAYS, MONTHS, esc } from './util.js';
+import { todayStr, addDays, DAYS, MONTHS, esc } from './util.js';
 import * as day from './day.js';
 
 let minuteTimer = null;
 
 let showDone = false;
 const bannerHidden = () => { try { return localStorage.getItem('tempo.hideInstall') === '1'; } catch { return false; } };
-
-const greeting = () => {
-  const h = new Date().getHours();
-  return h < 5 ? 'Still up?' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-};
 
 // One slim line instead of a ring: "2 of 5 done" + a thin segmented bar. Only shown once something is done or planned.
 function progress(done, total) {
@@ -30,13 +25,18 @@ function progress(done, total) {
 export function render(root) {
   const st = store.get();
   const today = todayStr();
-  const open = st.tasks.filter((t) => !t.done);
-  const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
   const plan = store.getPlan(today);
-  const inPlan = day.plannedTaskIds(today);
-  const todays = open.filter((t) => t.due === today && !inPlan.has(t.id)).sort((a, b) => b.prio - a.prio);
+  // Anything already in today's or tomorrow's plan is shown there only, never a second time in the lists below.
+  const inPlan = new Set([...day.plannedTaskIds(today), ...day.plannedTaskIds(addDays(today, 1))]);
+  const open = st.tasks.filter((t) => !t.done && !inPlan.has(t.id));
+  const late = open.filter((t) => t.due && t.due < today).sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0));
+  const todays = open.filter((t) => t.due === today).sort((a, b) => b.prio - a.prio);
   const doneToday = st.tasks.filter((t) => t.done && t.doneAt && new Date(t.doneAt).toDateString() === new Date().toDateString());
-  const habits = st.habits;
+  // habits that have a block in the plan on screen (today's, or tomorrow's in the evening) are only shown there;
+  // ticking a block ticks the habit, and the Habits tab still has all of them
+  const shownPlan = plan || store.getPlan(addDays(today, 1));
+  const planHabits = new Set((shownPlan?.blocks || []).map((b) => b.habitId).filter(Boolean));
+  const habits = st.habits.filter((h) => !planHabits.has(h.id));
   const habitsDone = habits.filter((h) => h.log[today]).length;
   const total = late.length + todays.length + doneToday.length + habits.length;
   const d = new Date();
@@ -49,7 +49,7 @@ export function render(root) {
 
   root.innerHTML = `
     <header class="top">
-      <div><div class="eyebrow">${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}</div><h1>${greeting()}</h1></div>
+      <div><h1>${DAYS[d.getDay()]}<span class="h1-c">${d.getDate()} ${MONTHS[d.getMonth()]}</span></h1></div>
       <button class="icon-btn" data-act="settings" aria-label="settings">${icon('sliders', 22)}</button>
     </header>
     ${!isStandalone() && !bannerHidden() ? `<div class="install-banner">${icon('download', 18)}<span class="ib-t">install to-do</span><button class="btn primary" data-act="install">install</button><button class="icon-btn" data-act="hideInstall" aria-label="hide install banner">${icon('x', 18)}</button></div>` : ''}
@@ -74,7 +74,7 @@ export function render(root) {
   root.onclick = (e) => {
     if (day.handleClick(e, () => render(root))) return;
     if (handleHabitClick(e)) return;
-    if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
+    if (handleTaskClick(e)) return;
     const a = e.target.closest('[data-act]')?.dataset.act;
     if (a === 'settings') openSettings();
     if (a === 'install') install();

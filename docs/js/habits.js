@@ -130,7 +130,7 @@ function card(h, today) {
   return `<section class="hb-card" data-hid="${esc(h.id)}">
     <div class="task habit ${done ? 'done' : ''}" data-hid="${esc(h.id)}">
       <button type="button" class="check p0" data-act="hcheck" role="checkbox" aria-checked="${done}" aria-label="${esc(h.title.trim() || 'untitled')}: today">${done ? icon('check', 15) : ''}</button>
-      <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta"><span class="m">${cur} day streak</span><span class="m">Best ${best}</span></span></button>
+      <button type="button" class="t-main" data-act="hopen"><span class="t-title">${title}</span><span class="t-meta">${cur || best ? `<span class="m">${cur} ${cur === 1 ? 'day' : 'days'} in a row</span><span class="m">best ${best}</span>` : '<span class="m">No streak yet</span>'}</span></button>
     </div>
     ${squares(h, today)}
   </section>`;
@@ -141,7 +141,7 @@ export function render(root) {
   const today = todayStr();
   const doneToday = st.habits.filter((h) => h.log[today]).length;
   root.innerHTML = `
-    <header class="top"><div><div class="eyebrow">${st.habits.length ? `${doneToday} of ${st.habits.length} done today` : 'every day'}</div><h1>Habits</h1></div></header>
+    <header class="top"><div><h1>Habits${st.habits.length ? `<span class="h1-c">${doneToday} of ${st.habits.length} today</span>` : ''}</h1></div></header>
     ${st.habits.map((h) => card(h, today)).join('')}
     ${st.habits.length ? '' : `<div class="empty">${icon('habits', 34)}<p>no habits yet.</p><small>add something you want to do every day. it shows up on Today until you do it, and every day you do it fills a square here.</small></div>`}
     <div class="composer"><form class="qa-form hb-add" autocomplete="off">

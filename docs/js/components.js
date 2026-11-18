@@ -38,14 +38,12 @@ export function taskRow(t, { showArea = true, showDue = true } = {}) {
   if (showArea) meta.push(areaMark(t.area));
   if (t.sub.length) meta.push(`<span class="m">${t.sub.filter((s) => s.d).length}/${t.sub.length} subtasks</span>`);
   if (t.dur) meta.push(`<span class="m">${durLabel(t.dur)}</span>`);
-  if (t.est || t.pomos) meta.push(`<span class="m">${t.pomos}${t.est ? '/' + t.est : ''} focus</span>`);
   if (t.repeat) meta.push(`<span class="m">Repeats ${t.repeat}</span>`);
   for (const tag of t.tags.slice(0, 3)) meta.push(`<span class="m tag">#${esc(tag)}</span>`);
   const title = t.title.trim() ? esc(t.title) : '<span class="muted">untitled</span>';
   return `<div class="task ${t.done ? 'done' : ''}" data-id="${esc(t.id)}">
     <button type="button" class="check p${t.prio}" data-act="toggle" role="checkbox" aria-checked="${!!t.done}" aria-label="${esc(t.title.trim() || 'untitled')}">${t.done ? icon('check', 15) : ''}</button>
     <button type="button" class="t-main" data-act="open" aria-keyshortcuts="Shift+F10" title="Shift+F10: more actions"><span class="t-title">${title}</span>${meta.length ? `<span class="t-meta">${meta.join('')}</span>` : ''}</button>
-    ${t.done ? '' : `<button type="button" class="icon-btn t-play" data-act="focus" aria-label="start focus on ${esc(t.title.trim() || 'untitled')}">${icon('play', 16)}</button>`}
   </div>`;
 }
 
@@ -74,7 +72,7 @@ export function toggleDone(id, row = null) {
 }
 
 // Shared click handling for lists of task rows. Returns true if it handled the event.
-export function handleTaskClick(e, { onFocus } = {}) {
+export function handleTaskClick(e) {
   const el = e.target.closest('[data-act]');
   const row = e.target.closest('.task');
   if (!el || !row) return false;
@@ -88,7 +86,6 @@ export function handleTaskClick(e, { onFocus } = {}) {
   if (!t) return false;
   if (el.dataset.act === 'toggle') return toggleDone(id, row), true;
   if (el.dataset.act === 'open') return openTask(id), true;
-  if (el.dataset.act === 'focus') return onFocus?.(id), true;
   return false;
 }
 
@@ -170,7 +167,6 @@ export function taskActions(id) {
       </div>
       <div class="qa-list">
         ${opt('done', 'check', t.done ? 'mark as not done' : 'mark as done')}
-        ${t.done ? '' : opt('focus', 'play', 'start focus')}
         ${opt('open', 'more', 'open details')}
         ${opt('delete', 'trash', 'delete')}
       </div>
@@ -194,7 +190,6 @@ export function taskActions(id) {
       store.updateTask(id, { area: k });
       toast(`moved to ${k}`, { action: 'undo', onAction: () => store.updateTask(id, { area: before }) });
     } else if (k === 'done') toggleDone(id);
-    else if (k === 'focus') document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id }));
     else if (k === 'open') setTimeout(() => openTask(id), 60);
     else if (k === 'delete') deleteWithUndo(id);
   });
@@ -215,7 +210,7 @@ export function composer({ placeholder = 'add a task…', hint = true } = {}) {
       <label class="qa-date" title="set a date">${icon('calendar', 20)}<input class="qa-date-in" type="date" aria-label="set a date for this task"></label>
       <button class="qa-send" type="submit" aria-label="add task">${icon('plus', 22)}</button>
     </form>
-    ${hint ? `<div class="qa-hint">try: <b>gym tomorrow !1 #health *2</b></div>` : ''}
+    ${hint ? `<div class="qa-hint">try: <b>gym tomorrow 45m !1 #health</b></div>` : ''}
   </div>`;
 }
 
@@ -260,7 +255,7 @@ export function bindComposer(root, getDefaults = () => ({})) {
     if (r.area) chip('area', r.area, 'list');
     r.tags.forEach((t) => chip(`tag:${t}`, `#${esc(t)}`, 'tag'));
     if (r.repeat) chip('repeat', `${icon('repeat', 13)}${r.repeat}`, 'repeat');
-    if (r.est) chip('est', `${icon('timer', 13)}${r.est}`, 'planned focus sessions');
+    if (r.est) chip('est', `${icon('timer', 13)}${r.est} × 25 min`, 'length');
     if (r.dur) chip('dur', `${icon('timer', 13)}${durLabel(r.dur)}`, 'how long');
     chips.hidden = !c.length;
     chips.innerHTML = c.join('');
@@ -351,8 +346,7 @@ export function openTask(id) {
   // that shows the current values and opens the editors on tap.
   const rec = openSheet(
     `<div class="ts">
-      <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button>
-        ${t0.done ? '' : `<button type="button" class="btn primary" id="ts-start">${icon('play', 16)} start focus</button>`}</div>
+      <div class="ts-bar"><button type="button" class="btn ghost" data-close aria-label="back to the list">${icon('chevL', 18)} back</button></div>
       <div class="ts-head"><button type="button" class="check big p${t0.prio} ${t0.done ? 'on' : ''}" id="ts-check" role="checkbox" aria-checked="${!!t0.done}" aria-label="done">${t0.done ? icon('check', 18) : ''}</button>
         <textarea id="ts-title" rows="1" placeholder="task name" enterkeyhint="done" aria-label="task name">${esc(t0.title)}</textarea></div>
       <textarea id="ts-notes" rows="1" placeholder="add notes…" aria-label="notes">${esc(t0.notes)}</textarea>
@@ -388,9 +382,6 @@ export function openTask(id) {
 
         <h2 class="lbl">status</h2>
         ${seg('status', [['todo', 'to do'], ['doing', 'doing']], t0.status)}
-
-        <h2 class="lbl">planned focus sessions <span class="muted">${t0.pomos} done · ${t0.focusMin} min</span></h2>
-        <div class="stepper"><button type="button" data-est="-1" aria-label="fewer focus sessions">−</button><span id="ts-est">${t0.est}</span><button type="button" data-est="1" aria-label="more focus sessions">+</button><span class="muted sm">planned</span></div>
 
         <h2 class="lbl">tags</h2>
         <input id="ts-tags" class="field" type="text" placeholder="work, urgent" value="${esc(t0.tags.join(', '))}" aria-label="tags">
@@ -489,7 +480,6 @@ export function openTask(id) {
     if (t.prio) parts.push(`priority: ${PRIO_LABEL[t.prio]}`);
     if (t.repeat) parts.push(`repeat: ${esc(t.repeat)}`);
     if (t.status === 'doing') parts.push('status: doing');
-    if (t.est || t.pomos) parts.push(`focus: ${t.pomos}/${t.est}`);
     if (t.tags.length) parts.push(t.tags.map((x) => '#' + esc(x)).join(' '));
     $('#ts-sum-c').innerHTML = parts.map((x) => `<span class="sum-chip">${x}</span>`).join('');
   };
@@ -515,13 +505,6 @@ export function openTask(id) {
       if (name === 'status') set({ status: b.dataset.v });
       if (name === 'area') set({ area: b.dataset.v });
       return summary();
-    }
-    const est = e.target.closest('[data-est]');
-    if (est) {
-      const v = Math.max(0, Math.min(20, cur().est + Number(est.dataset.est)));
-      set({ est: v });
-      $('#ts-est').textContent = v;
-      summary();
     }
   });
 
@@ -572,12 +555,6 @@ export function openTask(id) {
     inp.focus();
   });
 
-  const start = $('#ts-start');
-  if (start)
-    start.onclick = () => {
-      rec.close();
-      document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id }));
-    };
   // No "are you sure?" step: the toast offers undo instead, which is quicker and just as safe.
   $('#ts-del').onclick = () => {
     rec.close();

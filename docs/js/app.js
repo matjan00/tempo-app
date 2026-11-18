@@ -1,13 +1,10 @@
 import * as store from './store.js';
-import * as timer from './timer.js';
 import { applyTheme } from './theme.js';
 import { icon } from './icons.js';
 import { onInstallChange } from './install.js';
 import * as today from './today.js';
 import * as tasks from './tasks.js';
 import * as habits from './habits.js';
-import * as focus from './focus.js';
-import * as notes from './notes.js';
 import { closeAll, toast, focusSnapshot, focusRestore, reducedMotion } from './ui.js';
 import { bindLongPress } from './components.js';
 import * as sync from './sync.js';
@@ -18,8 +15,6 @@ const TABS = [
   ['today', 'Today', 'sun', today],
   ['tasks', 'Tasks', 'tasks', tasks],
   ['habits', 'Habits', 'habits', habits],
-  ['focus', 'Focus', 'timer', focus],
-  ['notes', 'Notes', 'notes', notes],
 ];
 
 const root = document.getElementById('screen');
@@ -84,7 +79,6 @@ function go(next) {
   try {
     localStorage.setItem('tempo.tab', tab);
   } catch {}
-  if (tab !== 'focus') focus.leaveZen();
   drawNav();
   root.scrollTop = 0;
   root.dataset.tab = tab; // before render(): the screens (and the quick-add bar) read it
@@ -95,16 +89,6 @@ function go(next) {
 nav.addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (b) go(b.dataset.tab);
-});
-
-// "Start focus" on a task anywhere in the app
-document.addEventListener('tempo:focus-task', (e) => {
-  closeAll();
-  timer.setTask(e.detail);
-  // keep a focus session that is already under way (just switch its task); otherwise get a fresh focus timer
-  if (timer.view().mode !== 'focus') timer.setMode('focus');
-  go('focus');
-  render();
 });
 
 // Hide the tab bar while typing in the quick-add bar so the keyboard has room.
@@ -156,8 +140,7 @@ window.addEventListener('store-save-ok', () => {
   toast('saving works again');
 });
 
-// Timer heartbeat
-let lastTitle = '';
+// Day change watch
 let lastDay = new Date().toDateString();
 // the app may stay open past midnight: redraw so "today", overdue and stats move to the new day
 function checkDay() {
@@ -167,16 +150,8 @@ function checkDay() {
     store.emit();
   }
 }
-setInterval(() => {
-  checkDay(); // cheap, and also runs while hidden (the browser throttles hidden timers anyway)
-  timer.tick(); // must keep running: it is what ends a session
-  const v = timer.view();
-  if (document.hidden && !v.running && lastTitle === 'to-do') return; // nothing visible changes
-  if (!document.hidden && tab === 'focus') focus.tickUI();
-  const title = v.running ? `${String(Math.floor(Math.ceil(v.rem / 1000) / 60)).padStart(2, '0')}:${String(Math.ceil(v.rem / 1000) % 60).padStart(2, '0')} · ${timer.MODE_LABEL[v.mode].toLowerCase()}` : 'to-do';
-  if (title !== lastTitle) document.title = lastTitle = title;
-}, 250);
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && (checkDay(), timer.tick(), tab === 'focus' && focus.tickUI()));
+setInterval(checkDay, 30000); // cheap; the Today timeline redraws itself every minute
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && checkDay());
 
 
 // Service worker (offline + installable). Reload once when a new version takes over.
@@ -203,7 +178,6 @@ drawNav();
 if (store.loadedCorrupt) toast('your saved data could not be read, so the app started fresh. import a backup if you have one.', { ms: 12000 });
 root.dataset.tab = tab;
 render();
-timer.sync();
 sync.start(); // off until a sync key is entered in Settings
 
 // Answers from "Done? / Missed?" block alerts: from the address (app was closed) or a message (app was open)

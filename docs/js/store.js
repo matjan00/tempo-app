@@ -534,34 +534,13 @@ export function restorePage(snap) {
 function seed(s) {
   const t = todayStr();
   s.tasks.push(
-    newTask({ title: 'Try a 25 min focus session', due: t, prio: 2, est: 1 }),
-    newTask({ title: 'Tap me to open details, tap the square to finish', due: t, sub: [{ id: uid(), t: 'Add a due date', d: false }, { id: uid(), t: 'Add a subtask', d: false }] }),
+    newTask({ title: 'Tap me, then set how long this takes', due: t, prio: 2, dur: 15 }),
+    newTask({ title: 'Tap the circle to finish a task', due: t, sub: [{ id: uid(), t: 'Add a due date', d: false }, { id: uid(), t: 'Add a subtask', d: false }] }),
     newTask({ title: 'Press and hold a task to reschedule or delete it', due: addDays(t, 1) }),
-    newTask({ title: 'Plan the week', due: addDays(t, 1), area: 'work', repeat: 'weekly' }),
+    newTask({ title: 'Plan the week', due: addDays(t, 1), area: 'work', repeat: 'weekly', dur: 30 }),
     newTask({ title: 'Choose work or personal for every task (below the bar, or @work)', area: 'work' })
   );
   s.habits.push({ id: uid(), title: 'Drink a glass of water', created: Date.now(), log: {} });
-  const b = newBlock;
-  s.pages.push({
-    id: uid(),
-    title: 'welcome to to-do',
-    icon: '👋',
-    pinned: true,
-    created: Date.now(),
-    updated: Date.now(),
-    blocks: [
-      b('p', 'Pages work like Notion. Press Enter for a new line, or type / to pick a block.'),
-      b('h2', 'Shortcuts'),
-      b('bullet', 'Type "# " at the start of a line for a big heading'),
-      b('bullet', 'Type "- " for a bullet, "1. " for a numbered list'),
-      b('bullet', 'Type "[] " for a checkbox, "> " for a quote, "---" for a line'),
-      b('h2', 'Quick add for tasks'),
-      b('todo', 'Write: call mom tomorrow !1 #family  — date, priority and tag are picked up automatically'),
-      b('todo', 'Write: gym every weekday *1  — repeats and plans one focus session'),
-      b('todo', 'Picked up a word by mistake (like "sat" in a title)? Tap its chip above the bar to keep it as text'),
-      b('quote', 'Your data stays on this phone. Back it up in Settings → Export.'),
-    ],
-  });
   return s;
 }
 state = load(); // initialised last: seed() needs the helpers above

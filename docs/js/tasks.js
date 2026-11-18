@@ -59,7 +59,7 @@ export function render(root) {
   const chip = (k, label, extra = '') => `<button class="chip ${filter === k ? 'on' : ''}" data-f="${k}" aria-pressed="${filter === k}">${extra}${label}</button>`;
 
   root.innerHTML = `
-    <header class="top"><div><div class="eyebrow" id="tasks-count">${body.open} open</div><h1>Tasks</h1></div>
+    <header class="top"><div><h1>Tasks<span class="h1-c" id="tasks-count">${body.open} open</span></h1></div>
       <div class="top-btns"><button class="icon-btn ${searching ? 'on' : ''}" data-act="search" aria-label="search tasks" aria-pressed="${searching}">${icon('search', 21)}</button>
 </div></header>
     ${searching ? `<input class="search" data-keep="search" type="search" placeholder="search tasks, notes, #tags" aria-label="search tasks" value="${esc(search)}">` : ''}
@@ -99,7 +99,7 @@ export function render(root) {
   }
 
   root.onclick = (e) => {
-    if (handleTaskClick(e, { onFocus: (id) => document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: id })) })) return;
+    if (handleTaskClick(e)) return;
     const f = e.target.closest('[data-f]');
     if (f) return (filter = f.dataset.f), render(root);
     const a = e.target.closest('[data-act]')?.dataset.act;

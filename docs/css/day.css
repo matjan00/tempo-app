@@ -1,53 +1,99 @@
-/* Day timeline on Today (day.js). Loaded after plain.css. */
+/* Day timeline on Today (day.js). Loaded after plain.css. Colours come from the theme tokens, so dark mode follows. */
 
-/* score line */
-.day-score .prog-t { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; }
+/* ---------- score line ---------- */
+.day-score .prog-t { display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; font-variant-numeric: tabular-nums; }
 .day-score .prog-t b { font-weight: 600; color: var(--text); }
 .day-score.low .prog-t b { color: var(--danger); }
 .day-score .prog-t .ic { color: var(--muted); margin-left: 2px; }
-.day-score .prog-bar i.on { transition: width 0.4s; }
 
-/* header: Today's plan | Tomorrow   [Replan from now] */
-.day-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; margin-bottom: 2px; }
-.day-tabs { display: flex; gap: 14px; min-width: 0; }
-.day-tab { min-height: 40px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 500; color: var(--muted); }
-.day-tab.on { color: var(--text); }
+/* ---------- header: Today's plan | Tomorrow   [Replan from now] ---------- */
+.day-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-bottom: 4px; }
+.day-tabs { display: flex; gap: 2px; min-width: 0; margin-left: -8px; }
+.day-tab { min-height: 40px; padding: 0 8px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 14px; font-weight: 500; color: var(--muted); }
+.day-tab.on { color: var(--text); font-weight: 600; }
+.day-tab:not(.on):active { background: var(--surface2); }
 .day-tab:only-child { pointer-events: none; }
-.day-replan { min-height: 32px; padding: 4px 10px; font-size: 13px; color: var(--text); }
+.day-replan { min-height: 36px; padding: 4px 12px; font-size: 13px; color: var(--text); }
 .day-empty { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 
-/* rows: time · check · title */
-.blk { gap: 10px; }
-.blk-time { flex: none; width: 40px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.blk-dot { flex: none; width: 22px; height: 22px; display: grid; place-items: center; }
-.blk-dot::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--muted); }
-.blk.k-meeting .blk-dot::before { background: var(--text); width: 10px; height: 10px; }
-.blk.k-meeting .t-title { font-weight: 500; }
-.blk.k-prep .t-title, .blk.k-lunch .t-title, .blk.k-break .t-title { color: var(--muted); }
-.blk.k-prep, .blk.k-lunch, .blk.k-break { min-height: 44px; padding-top: 6px; padding-bottom: 6px; }
-.blk .check:disabled { opacity: 0.45; }
+/* ---------- rows: time · marker · title, joined by a thin rail ---------- */
+/* columns: 44px time, 12px gap, 22px marker (the rail runs through the marker's centre at 44 + 12 + 11 px) */
+.blk-list { position: relative; }
+.blk-list::before { content: ''; position: absolute; left: 66.5px; top: 14px; bottom: 14px; width: 1px; background: var(--line); }
+.blk { position: relative; gap: 12px; border-bottom: 0; padding: 9px 0; min-height: 56px; align-items: flex-start; }
+.blk > .check, .blk > .blk-dot { position: relative; z-index: 1; flex: none; margin-top: 1px; }
+.blk > .check { background: var(--bg); }
+.blk.done > .check { background: var(--accent); }
+.blk .t-main { padding-top: 1px; }
+.blk-time { flex: none; width: 44px; padding-top: 2px; font-size: 13px; line-height: 1.35; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.blk-dot { width: 22px; height: 22px; display: grid; place-items: center; }
+.blk-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); background: var(--bg); }
+.blk.k-meeting .blk-dot::before { width: 10px; height: 10px; border-radius: 3px; border: 0; background: var(--text); }
+.blk.k-meeting .t-title { font-weight: 600; }
+.blk .check:disabled { opacity: 0.5; }
+.blk-note { display: block; margin-top: 3px; font-size: 13px; line-height: 1.35; color: var(--danger); }
+
+/* prep, lunch, breaks: one quiet line */
+.blk.minor { min-height: 40px; padding: 6px 0; align-items: center; }
+.blk.minor .blk-time { padding-top: 0; }
+.blk.minor > .blk-dot { margin-top: 0; }
+.blk.minor .t-main { display: flex; align-items: baseline; gap: 8px; padding: 0; }
+.blk.minor .t-title { font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.blk.minor .blk-len { flex: none; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* now: a soft accent wash and an accent time */
-.blk.now { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 10px; margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-bottom-color: transparent; }
+.blk.now { background: color-mix(in srgb, var(--accent) 9%, transparent); border-radius: 12px; margin: 2px -10px; padding-left: 10px; padding-right: 10px; }
 .blk.now .blk-time, .m.now-m { color: var(--accent-text); font-weight: 600; }
+.blk.now > .check, .blk.now > .blk-dot::before { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 9%, var(--bg)); }
 
-/* missed / not ticked */
-.blk.missed .t-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
-.m.miss { color: var(--danger); }
+/* done / missed */
+.blk.done .t-title, .blk.missed .t-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+.blk.unticked > .check { border-color: var(--danger); }
 
-/* block sheet + reason sheet */
+/* free time between blocks */
+.blk-gap { margin-left: 82px; padding: 1px 0 3px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* now, when it falls between blocks: a dot on the rail and a line across */
+.blk-nowline { position: relative; display: flex; align-items: center; gap: 8px; height: 28px; padding-left: 82px; }
+.blk-nowline::before { content: ''; position: absolute; left: 62px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--bg); }
+.blk-nowline::after { content: ''; flex: 1; height: 1.5px; background: var(--accent); opacity: 0.5; }
+.blk-nowline span { font-size: 12.5px; font-weight: 600; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+
+/* "Earlier today · 5 done · 1 missed" */
+.blk-earlier { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0; border: 0; border-radius: 10px; background: none; font: inherit; font-size: 14px; color: var(--text); text-align: left; }
+.blk-earlier > span:first-child { font-weight: 500; }
+.blk-earlier-c { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.blk-earlier .ic { margin-left: auto; color: var(--muted); }
+.blk-earlier:active { opacity: 0.7; }
+
+/* tomorrow preview: read-only, so the checkboxes recede */
+.day.preview .blk > .check { opacity: 0.55; }
+
+/* ---------- block sheet + reason sheet ---------- */
 .blk-info { margin: -8px 0 12px; font-size: 14px; color: var(--muted); }
 .blk-why { margin: -4px 0 12px; font-size: 14px; color: var(--danger); }
 .blk-reasons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.blk-reasons .chip { font-size: 14px; min-height: 34px; }
+.blk-reasons .chip { font-size: 14px; min-height: 36px; }
 .blk-reason { margin-bottom: 12px; }
 .qa-sheet .row-btns .btn { width: 100%; }
 
-/* "add to plan" chip next to a task: keep the title clear of it */
-.pull .t-main { padding-right: 104px; }
+/* ---------- a task with an action next to it ("add to plan", "do today") ---------- */
+.pull { display: flex; align-items: center; gap: 10px; border-bottom: 0.5px solid var(--line); }
+.pull:last-child { border-bottom: 0; }
+.pull > .task { flex: 1; min-width: 0; border-bottom: 0; }
+.pull > .chip { position: static; transform: none; flex: none; min-height: 34px; padding: 5px 12px; font-size: 13px; }
 
-/* task sheet: how long (chips + own minutes) */
+/* ---------- task sheet: how long (chips + own minutes) ---------- */
 .ts-dur-own { gap: 4px; color: var(--muted); }
 .ts-dur-own input { width: 52px; border: 0; background: none; font: inherit; color: var(--text); text-align: right; padding: 0; outline: none; -moz-appearance: textfield; }
 .ts-dur-own input::-webkit-outer-spin-button, .ts-dur-own input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .ts-dur-own:focus-within { border-color: var(--accent); }
+
+
+/* ---------- screen headers: the heading names the screen, its count sits beside it ---------- */
+.top h1 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 10px; }
+.h1-c { font-size: 15px; font-weight: 400; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---------- habits: a compact 12-week history under each habit ---------- */
+.hb-grid { grid-template-columns: repeat(12, 14px); gap: 3px; max-width: none; margin: 2px 0 0 34px; }
+.hb-grid i { border-radius: 3px; }

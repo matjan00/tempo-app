@@ -48,21 +48,6 @@ function syncSection() {
     ${push.supported() ? `<div class="set-card"><div class="set-row set-tog"><label><span>Ask “done?” when a block ends</span><span class="switch"><input type="checkbox" data-tog="blockAlarms" ${store.get().settings.blockAlarms ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label><p class="set-hint">When a task, habit or personal block in today’s plan ends you get a notification with Done and Missed buttons, even when to-do is closed. Block starts come from the Plan calendar.</p></div></div>` : ''}`;
 }
 
-const STEPPERS = [
-  { k: 'focus', label: 'Focus', min: 5, max: 90, step: 5, unit: 'min' },
-  { k: 'short', label: 'Short break', min: 1, max: 30, step: 1, unit: 'min' },
-  { k: 'long', label: 'Long break', min: 5, max: 60, step: 5, unit: 'min' },
-  { k: 'every', label: 'Long break after', min: 2, max: 8, step: 1, unit: 'sessions' },
-];
-
-const TOGGLES = [
-  { k: 'autoStart', label: 'Auto-start next session' },
-  { k: 'sound', label: 'Sound' },
-  { k: 'vibrate', label: 'Vibrate' },
-  { k: 'keepAwake', label: 'Keep screen on while running' },
-  { k: 'notify', label: 'Ring when phone is locked', hint: 'Sends a notification at the exact end time, even if to-do is closed. Needs notification permission; make sure the phone is not on silent.' },
-];
-
 const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 
 
@@ -75,12 +60,6 @@ function html() {
       return `<button class="set-sw ${s.accent === id ? 'on' : ''}" data-accent="${id}" style="background:${bg}" aria-label="accent ${esc(a.name.toLowerCase())}" aria-pressed="${s.accent === id}" title="${esc(a.name.toLowerCase())}"></button>`;
     })
     .join('');
-  const steps = STEPPERS.map(
-    (p) => `<div class="set-row"><span>${p.label}</span><div class="set-step"><button data-step="${p.k}" data-d="-1" aria-label="less ${p.label.toLowerCase()}" ${s[p.k] <= p.min ? 'disabled' : ''}>&minus;</button><output aria-live="polite"><b>${s[p.k]}</b> <small>${p.unit}</small></output><button data-step="${p.k}" data-d="1" aria-label="more ${p.label.toLowerCase()}" ${s[p.k] >= p.max ? 'disabled' : ''}>+</button></div></div>`
-  ).join('');
-  const tog = TOGGLES.map(
-    (t) => `<div class="set-row set-tog"><label><span>${t.label}</span><span class="switch"><input type="checkbox" data-tog="${t.k}" ${s[t.k] ? 'checked' : ''}><i></i><b class="sw-t" aria-hidden="true"></b></span></label>${t.hint ? `<p class="set-hint">${t.hint}</p>` : ''}</div>`
-  ).join('');
   // plain-language help: the quick-add words and the hidden gestures
   const helpRow = (k, v) => `<div class="help-row"><dt>${k}</dt><dd>${v}</dd></div>`;
   const help = `<h4 class="help-h">quick add: type these in the bar</h4>
@@ -89,7 +68,7 @@ function html() {
       ${helpRow('!1 · !2 · !3', '!1 high · !2 medium · !3 low priority')}
       ${helpRow('#gym', 'adds a tag')}
       ${helpRow('@work', 'marks it as work (default is personal)')}
-      ${helpRow('*2', 'plans 2 focus sessions')}
+      ${helpRow('*2', 'makes it 2 × 25 min long')}
       ${helpRow('30m · 1h · 1h30', 'how long it takes (used by the day plan)')}
       ${helpRow('every week', 'makes it repeat')}
       ${helpRow('every day', 'makes it a daily habit')}
@@ -97,20 +76,15 @@ function html() {
     <p class="set-hint">tap a word in the preview above the bar to keep it as plain text.</p>
     <h4 class="help-h">gestures</h4>
     <dl class="help">
-      ${helpRow('press and hold a task', 'quick actions: move the date, focus, delete')}
+      ${helpRow('press and hold a task', 'quick actions: move the date, work or personal, delete')}
       ${helpRow('swipe a sheet down', 'closes it (so does the back gesture)')}
-      ${helpRow('tap the timer dial', 'starts or pauses the timer')}
       ${helpRow('Shift+F10 on a task', 'quick actions from the keyboard')}
     </dl>`;
-  const test = push.enabled() ? `<button class="btn ghost set-btn" data-act="testpush">Test: ring in 10 seconds</button>` : push.configured() ? '' : `<p class="set-hint">Locked-phone alarm is not set up yet.</p>`;
   const install = isStandalone() ? '' : `<button class="btn primary set-btn" data-act="install">Install app</button>`;
   return `${sheetHeader('Settings', closeBtn())}
   <div class="set-body">
     <h3 class="set-h">Appearance</h3>
     <div class="set-card"><div class="set-seg">${seg}</div><div class="set-swatches">${sw}</div></div>
-    <h3 class="set-h">Timer</h3>
-    <div class="set-card">${steps}</div>
-    <div class="set-card">${tog}${test}</div>
     ${syncSection()}
     <h3 class="set-h">Data</h3>
     <div class="set-card">
@@ -118,7 +92,7 @@ function html() {
       <div class="set-btns"><button class="btn ghost set-btn" data-act="export">Export backup</button><button class="btn ghost set-btn" data-act="import">Import backup</button></div>
       <input type="file" accept="application/json,.json" hidden data-file>
       <div class="set-danger">
-        <p class="set-hint">erases every task, habit, note and setting on this phone.</p>
+        <p class="set-hint">erases every task, habit, plan and setting on this phone.</p>
         <button class="btn danger set-btn" data-act="reset">${icon('trash', 18)} reset everything</button>
       </div>
     </div>
@@ -137,11 +111,7 @@ function draw() {
   const snap = focusSnapshot(body); // keep keyboard focus on the same control after the redraw
   body.innerHTML = html();
   scrollers.forEach((e, i) => (e.scrollTop = tops[i]));
-  if (snap && !focusRestore(body, snap)) {
-    // e.g. a stepper that just hit its limit is now disabled: land on its partner instead
-    const k = /data-step="([^"]+)"/.exec(snap.sel)?.[1];
-    (k && body.querySelector(`[data-step="${k}"]:not(:disabled)`))?.focus({ preventScroll: true });
-  }
+  if (snap) focusRestore(body, snap);
 }
 
 const set = (k, v) => store.mutate((st) => (st.settings[k] = v));
@@ -234,14 +204,6 @@ export function openSettings() {
       theme.applyTheme();
       return draw();
     }
-    const stp = e.target.closest('[data-step]');
-    if (stp) {
-      const p = STEPPERS.find((x) => x.k === stp.dataset.step);
-      const cur = store.get().settings[p.k];
-      const n = Math.min(p.max, Math.max(p.min, cur + p.step * Number(stp.dataset.d)));
-      if (n !== cur) set(p.k, n);
-      return draw();
-    }
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'export') doExport();
     else if (act === 'import') body.querySelector('[data-file]').click();
@@ -276,19 +238,8 @@ export function openSettings() {
       if (ok) sync.disconnect();
       draw();
     }
-    else if (act === 'testpush') {
-      let r;
-      try {
-        r = await push.schedule(Date.now() + 10000, 'to-do test', 'If you see this, locked-phone alarms work.');
-      } catch (err) {
-        r = { ok: false, error: String(err?.message || err) };
-      }
-      if (r && r.ok === false) toast(`the test alarm could not be set: ${String(r.error || 'unknown error').toLowerCase()}`, { ms: 8000 });
-      else if (r?.skipped) toast('locked-phone alarms are switched off. turn on “Ring when phone is locked” first.', { ms: 6000 });
-      else toast('lock your phone now. it should ring in about 10–20 seconds.', { ms: 6000 });
-    }
     else if (act === 'reset') {
-      const ok = await confirmDialog('all tasks, habits, notes and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
+      const ok = await confirmDialog('all tasks, habits, plans and settings on this phone will be erased. this cannot be undone.', { ok: 'erase everything', title: 'reset to-do?' });
       if (ok) {
         sync.disconnect(); // otherwise the wipe would be synced as "delete everything" on the server too
         store.resetAll(); // stops the app from saving the old data back while it reloads
@@ -308,25 +259,6 @@ export function openSettings() {
     const t = e.target.closest('[data-tog]');
     if (!t) return;
     const k = t.dataset.tog;
-    if (k === 'notify' && t.checked) {
-      let ok = false;
-      let why = 'notifications are not available on this device yet.';
-      if (push.supported()) {
-        const r = await push.enable();
-        ok = r.ok;
-        why = r.why || why;
-      } else {
-        try {
-          ok = 'Notification' in window && (await Notification.requestPermission()) === 'granted';
-        } catch {}
-      }
-      if (!ok) {
-        set('notify', false);
-        toast(String(why).toLowerCase(), { ms: 9000 });
-        return draw();
-      }
-    }
-    if (k === 'notify' && !t.checked) push.disable();
     if (k === 'blockAlarms') {
       if (t.checked) {
         const p = await push.enable(); // permission + subscription

@@ -29,27 +29,59 @@ export function scoreLine(plan, plans, today) {
 }
 
 // ---------- timeline ----------
+const MINOR = ['prep', 'lunch', 'break']; // small fixed blocks: one compact line
+let showEarlier = false; // finished blocks from earlier today are folded away until asked for
+
 function blockRow(b, { at, live }) {
   const fixed = P.FIXED.includes(b.kind);
   const s = P.toMin(b.start), e = P.toMin(b.end);
   const now = live && s <= at && at < e && b.status !== 'missed';
   const unticked = live && e <= at && !fixed && b.status === 'planned';
-  const meta = [`<span class="m">${b.start}–${b.end}</span>`];
+  const title = b.title.trim() ? esc(b.title) : '<span class="muted">untitled</span>';
+  const time = `<span class="blk-time" aria-hidden="true">${b.start}</span>`;
+  if (MINOR.includes(b.kind))
+    return `<div class="task blk minor k-${b.kind} ${b.status} ${now ? 'now' : ''}" data-bid="${esc(b.id)}">
+      ${time}<span class="blk-dot" aria-hidden="true"></span>
+      <button type="button" class="t-main" data-act="bopen"><span class="t-title">${title}</span><span class="blk-len">${hm(e - s)}</span></button>
+    </div>`;
+  const meta = [`<span class="m">${now ? `until ${b.end}` : hm(e - s)}</span>`];
   if (now) meta.unshift('<span class="m now-m">Now</span>');
   if (KIND[b.kind]) meta.push(`<span class="m">${KIND[b.kind]}</span>`);
   else if (b.area) meta.push(`<span class="m">${b.area === 'work' ? 'Work' : 'Personal'}</span>`);
   if (b.copyOf) meta.push('<span class="m">Second try</span>');
-  if (b.status === 'missed') meta.push(`<span class="m miss">Missed${b.moved ? ` · moved to ${esc(b.moved)}` : ''}</span>`);
-  if (unticked) meta.push('<span class="m miss">Not ticked</span>');
-  const title = b.title.trim() ? esc(b.title) : '<span class="muted">untitled</span>';
+  const note =
+    b.status === 'missed' ? `Missed${b.reason ? `: ${esc(b.reason)}` : ''}${b.moved ? ` · moved to ${esc(b.moved)}` : ''}`
+    : unticked ? 'Not ticked yet'
+    : '';
   const mark = fixed
     ? `<span class="blk-dot" aria-hidden="true"></span>`
     : `<button type="button" class="check" data-act="bcheck" role="checkbox" aria-checked="${b.status === 'done'}" aria-label="${esc(b.title || 'block')}" ${live && b.status !== 'missed' ? '' : 'disabled'}>${b.status === 'done' ? icon('check', 15) : ''}</button>`;
   return `<div class="task blk k-${b.kind} ${b.status} ${now ? 'now' : ''} ${unticked ? 'unticked' : ''}" data-bid="${esc(b.id)}">
-    <span class="blk-time" aria-hidden="true">${b.start}</span>
+    ${time}
     ${mark}
-    <button type="button" class="t-main" data-act="bopen"><span class="t-title">${title}</span><span class="t-meta">${meta.join('')}</span></button>
+    <button type="button" class="t-main" data-act="bopen"><span class="t-title">${title}</span><span class="t-meta">${meta.join('')}</span>${note ? `<span class="blk-note">${note}</span>` : ''}</button>
   </div>`;
+}
+
+// The visible rows: blocks, plus "free" gaps of 20 min or more and a "now" line when now falls between blocks.
+function rows(blocks, { at, live }) {
+  const out = [];
+  let lastEnd = null;
+  let nowDone = !live;
+  for (const b of blocks) {
+    const s = P.toMin(b.start), e = P.toMin(b.end);
+    if (!nowDone && s > at && (lastEnd === null || lastEnd <= at)) {
+      out.push(`<div class="blk-nowline" role="presentation"><span>now · ${P.fromMin(at)}</span></div>`);
+      nowDone = true;
+    }
+    if (lastEnd !== null && b.status !== 'missed' && s - lastEnd >= 20 && !(live && s <= at))
+      out.push(`<div class="blk-gap">free · ${hm(s - lastEnd)}</div>`);
+    if (live && s <= at && at < e && b.status !== 'missed') nowDone = true;
+    out.push(blockRow(b, { at, live }));
+    if (b.status !== 'missed') lastEnd = Math.max(lastEnd ?? 0, e);
+  }
+  if (!nowDone && at < P.toMin(P.DAY.end)) out.push(`<div class="blk-nowline" role="presentation"><span>now · ${P.fromMin(at)}</span></div>`);
+  return out.join('');
 }
 
 // Which plan the section shows. Returns null when there is nothing to show.
@@ -73,12 +105,24 @@ export function section(today = todayStr()) {
     on ? `<button type="button" class="day-tab ${s.v === v ? 'on' : ''}" data-act="dview" data-v="${v}" aria-pressed="${s.v === v}">${label}</button>` : '';
   const canReplan = live && s.plan.blocks.some((b) => !P.FIXED.includes(b.kind) && b.status === 'planned' && P.toMin(b.end) > at - 600);
   const blocks = s.plan.blocks;
-  return `<section class="sec day">
+  // finished business from earlier today (done, missed, or a fixed block that is over) folds into one row;
+  // unticked blocks stay in view because they still need an answer
+  const over = (b) => P.toMin(b.end) <= at && (b.status !== 'planned' || P.FIXED.includes(b.kind));
+  const earlier = live ? blocks.filter(over) : [];
+  const visible = live && !showEarlier ? blocks.filter((b) => !over(b)) : blocks;
+  const nDone = earlier.filter((b) => b.status === 'done').length;
+  const nMissed = earlier.filter((b) => b.status === 'missed').length;
+  const fold = earlier.length
+    ? `<button type="button" class="blk-earlier" data-act="earlier" aria-expanded="${showEarlier}">
+        <span>Earlier today</span><span class="blk-earlier-c">${[nDone && `${nDone} done`, nMissed && `${nMissed} missed`, earlier.length - nDone - nMissed && `${earlier.length - nDone - nMissed} meetings & breaks`].filter(Boolean).join(' · ')}</span>${icon(showEarlier ? 'chevD' : 'chevR', 16)}
+      </button>`
+    : '';
+  return `<section class="sec day ${live ? 'live' : 'preview'}">
     <div class="day-h">
       <div class="day-tabs">${tab('today', 'Today’s plan', s.hasToday)}${tab('tomorrow', 'Tomorrow', s.hasTomorrow)}</div>
       ${canReplan ? `<button type="button" class="chip day-replan" data-act="replan">${icon('reset', 14)} Replan from now</button>` : ''}
     </div>
-    ${blocks.length ? blocks.map((b) => blockRow(b, { at, live })).join('') : '<p class="day-empty">Nothing planned.</p>'}
+    ${blocks.length ? `${fold}<div class="blk-list">${rows(visible, { at, live })}</div>` : '<p class="day-empty">Nothing planned.</p>'}
   </section>`;
 }
 
@@ -200,7 +244,6 @@ function openBlock(date, id) {
   if (live && b.status === 'planned' && !fixed) acts.push(opt('done', 'check', 'done'), opt('miss', 'x', 'missed it…'));
   if (live && b.status === 'done') acts.push(opt('undone', 'reset', 'mark as not done'));
   if (live && b.status === 'planned' && fixed) acts.push(opt('skip', 'x', 'didn’t happen'));
-  if (task && !task.done && live) acts.push(opt('focus', 'play', 'start focus'));
   if (task) acts.push(opt('task', 'more', 'open task'));
   const status = b.status === 'missed' ? `<p class="blk-why">Missed${b.reason ? `: ${esc(b.reason)}` : ''}${b.moved ? ` · moved to ${esc(b.moved)}` : ''}</p>` : '';
   const rec = openSheet(
@@ -220,7 +263,6 @@ function openBlock(date, id) {
     else if (k === 'undone') setStatus(date, id, 'planned');
     else if (k === 'skip') miss(id, 'didn’t happen');
     else if (k === 'miss') setTimeout(() => askReason(id), 60);
-    else if (k === 'focus') document.dispatchEvent(new CustomEvent('tempo:focus-task', { detail: b.taskId }));
     else if (k === 'task') setTimeout(() => openTask(b.taskId), 60);
   });
 }
@@ -294,6 +336,11 @@ export function handleClick(e, rerender) {
   const el = e.target.closest('[data-act]');
   if (!el) return false;
   const a = el.dataset.act;
+  if (a === 'earlier') {
+    showEarlier = !showEarlier;
+    rerender();
+    return true;
+  }
   if (a === 'dview') {
     view = el.dataset.v;
     rerender();
