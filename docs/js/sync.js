@@ -21,6 +21,9 @@ const COLS = [
   ['plan', 'plans'],
 ];
 const LOCAL_SETTINGS = ['notify', 'blockAlarms']; // tied to this device's push subscription, never synced
+// what tempo-sync accepts (cleanRecords there)
+const SERVER_ID = /^[\w-]{1,64}$/;
+const MAX_RECORD = 256 * 1024;
 
 const normKey = (k) => String(k || '').toLowerCase().replace(/[\s-]/g, '');
 
@@ -186,12 +189,23 @@ async function once() {
     const id = rest.join(':');
     const b = M.base[k];
     const local = recs.get(k);
+    // the server refuses a whole batch over one record it can't take (id too long / odd, record too big):
+    // keep such a record on this device only, so everything else still syncs
+    if (!SERVER_ID.test(id) || (local && JSON.stringify(local.data).length > MAX_RECORD)) continue;
     if (local) out.push({ kind, id, data: local.data, mt: M.pend[k], base: b ? b[0] : 0, h: local.h });
     else if (b) out.push({ kind, id, deleted: true, mt: M.pend[k], base: b[0] });
     else delete M.pend[k];
   }
-  for (let i = 0; i < out.length; i += 200) {
-    const chunk = out.slice(i, i + 200);
+  // batches of up to 200 records and ~3 MB (the server takes at most 4 MB per call)
+  const chunks = [];
+  let size = Infinity;
+  for (const x of out) {
+    const n = x.data ? JSON.stringify(x.data).length + 200 : 200;
+    if (size + n > 3e6 || chunks[chunks.length - 1].length >= 200) chunks.push([]), (size = 0);
+    chunks[chunks.length - 1].push(x);
+    size += n;
+  }
+  for (const chunk of chunks) {
     const r = await call(M.key, { action: 'push', records: chunk.map(({ h, ...x }) => x) });
     const sent = new Map(chunk.map((x) => [`${x.kind}:${x.id}`, x]));
     const nowRecs = records();
@@ -273,6 +287,8 @@ export async function connect(rawKey, mode = 'merge') {
     } finally {
       applying = false;
     }
+    // this device's settings count as already synced, so the server's settings come down instead of being overwritten
+    M.base['settings:main'] = [0, records().get('settings:main').h];
   }
   saveMeta();
   // merge: everything here counts as new and is pushed on the first sync (the newer edit wins where both

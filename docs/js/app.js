@@ -181,8 +181,11 @@ render();
 sync.start(); // off until a sync key is entered in Settings
 
 // Answers from "Done? / Missed?" block alerts: from the address (app was closed) or a message (app was open)
-function onBlockAction(date, block, act) {
+async function onBlockAction(date, block, act) {
   if (tab !== 'today') go('today');
+  // the alert comes from the server's copy of the plan: when this phone hasn't got that plan (or block) yet,
+  // e.g. the app was closed since the planner wrote it, sync first instead of saying the block is gone
+  if (!store.getPlan(date)?.blocks.some((b) => b.id === block) && sync.connected()) await sync.syncNow();
   setTimeout(() => day.blockAction(date, block, act), 150);
 }
 {

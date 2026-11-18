@@ -146,7 +146,9 @@ async function doImport(file) {
     return toast('could not make a safety copy first, so nothing was imported. export a backup, then try again.', { ms: 7000 });
   }
   try {
-    store.replaceAll(data);
+    // alerts belong to this phone's push registration, not to the backup (it may come from another phone)
+    const { notify, blockAlarms } = store.get().settings;
+    store.replaceAll({ ...data, settings: { ...(isObj(data.settings) ? data.settings : {}), notify, blockAlarms } });
     theme.applyTheme();
     if (current && !current.closed) draw();
   } catch (e) {

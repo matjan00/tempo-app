@@ -396,6 +396,7 @@ export function openTask(id) {
 
   // Save anything still being typed when the sheet closes (Back gesture, backdrop tap…).
   const onClose = () => {
+    unsub();
     const t = cur();
     if (t) {
       const patch = {};
@@ -412,6 +413,9 @@ export function openTask(id) {
   const $ = (s) => rec.body.querySelector(s);
   const cur = () => store.getTask(id);
   const set = (patch, silent = false) => store.updateTask(id, patch, silent);
+  // the task can vanish while the sheet is open (deleted on another device, then synced): close the sheet
+  // instead of leaving controls that would throw on the missing task
+  const unsub = store.subscribe(() => !cur() && rec.close());
 
   const title = $('#ts-title');
   const notes = $('#ts-notes');

@@ -29,6 +29,10 @@ const SCORED = ['task', 'habit', 'personal'];
 // doesn't know about. Set to true to send every start from here too.
 const START_ALERTS = false;
 const STALE_S = 600; // a block that ended more than 10 minutes ago is not announced any more
+// Waits are worked out from wall-clock times, which jump by an hour on a daylight-saving day: a wait of many
+// hours would then wake up an hour late, after the block's alert went stale. Look again at least this often.
+// (A changed plan already wakes the phone's check at once: the tempo_plan_changed trigger in push.sql.)
+const MAX_WAIT_S = 1800;
 
 const cors = (origin: string | null) => ({
   'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
@@ -143,7 +147,7 @@ async function blockAlarms() {
     }
     const next = events.map((e) => e.at).filter((e) => e > sec).sort((a, b) => a - b)[0];
     // nothing left today: look again just after local midnight (tomorrow's plan)
-    const waitS = next !== undefined ? next - sec : 86400 - sec + 60;
+    const waitS = Math.min(MAX_WAIT_S, next !== undefined ? next - sec : 86400 - sec + 60);
     await sb.from(DEVICES).update({ checked_until: now.toISOString(), next_at: new Date(now.getTime() + waitS * 1000).toISOString() }).eq('endpoint', d.endpoint);
   }
   return sent;
