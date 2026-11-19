@@ -1,6 +1,6 @@
 # Morning brief
 
-Runs Mon–Fri at 07:45 Europe/Warsaw as a Claude cloud routine. Same rules as `routines/evening-review.md`
+Runs Mon–Fri at 07:30 Europe/Warsaw as a Claude cloud routine (before the 07:45 brief alert). Same rules as `routines/evening-review.md`
 (times, calendars, what you may touch, scripts and `SYNC_KEY`).
 
 ## 1. Catch late calendar changes
@@ -10,7 +10,11 @@ them with the meetings in today's plan (`node scripts/sync.cjs pull plan`, the p
 - Meetings changed and nothing in today's plan is ticked or missed yet: rebuild it the same way.
 - Otherwise leave the plan alone.
 
-## 2. Email the brief
+The plan's calendar events include a "Top 3: …" event at 07:45 (description `to-do plan · brief`): that popup
+is the brief the user actually sees on the locked phone (Gmail never notifies about mail sent to yourself).
+When you rebuild, write the calendar exactly as evening review step 4, so that event is replaced too.
+
+## 2. Email the brief (a full copy for reference)
 Send one plain-text email with Gmail to the user's own address (given in the routine prompt), nothing else.
 
 Subject: `Plan for <Thu 19 Nov>: <n> meetings, top 3 inside`

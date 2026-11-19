@@ -199,8 +199,9 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
 
 // Calendar events for the "Plan" calendar: everything except the meetings (those are already there).
 const COLOR = { task: '9', personal: '10', habit: '2', prep: '8', lunch: '5', break: '8' }; // Google colorIds
+export const BRIEF_AT = '07:45';
 export function calendarEvents(plan, timeZone = 'Europe/Warsaw') {
-  return plan.blocks
+  const events = plan.blocks
     .filter((b) => b.kind !== 'meeting')
     .map((b) => ({
       summary: b.title,
@@ -210,6 +211,23 @@ export function calendarEvents(plan, timeZone = 'Europe/Warsaw') {
       description: `to-do plan · ${b.kind}${b.taskId ? ' · task ' + b.taskId : ''}`,
       overrideReminders: [{ method: 'popup', minutes: 0 }], // the start alert on the locked phone (the app sends the end alerts)
     }));
+  // The morning brief as a calendar alert: Gmail never notifies about mail you send yourself, but a Plan
+  // calendar popup shows on the locked screen. Title = the top 3; description = the whole day.
+  const top = plan.blocks.filter((b) => b.kind === 'task').slice(0, 3);
+  const pick = top.length ? top : plan.blocks.filter((b) => ['personal', 'habit'].includes(b.kind)).slice(0, 3);
+  if (pick.length) {
+    const meetings = plan.blocks.filter((b) => b.kind === 'meeting').length;
+    const end = fromMin(toMin(BRIEF_AT) + 5);
+    events.push({
+      summary: `Top ${pick.length}: ${pick.map((b) => b.title).join(' · ')}`,
+      start: { dateTime: `${plan.date}T${BRIEF_AT}:00`, timeZone },
+      end: { dateTime: `${plan.date}T${end}:00`, timeZone },
+      colorId: '11',
+      description: `to-do plan · brief\n${meetings} meeting${meetings === 1 ? '' : 's'} today\n\n` + plan.blocks.map((b) => `${b.start} ${b.title}`).join('\n'),
+      overrideReminders: [{ method: 'popup', minutes: 0 }],
+    });
+  }
+  return events;
 }
 
 export function summary({ plan, overflow, notes, stats }) {
