@@ -35,6 +35,13 @@ This creates the table and a 10-second cron job, stores the secrets, deploys the
 
 Function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`, `VAPID_SUBJECT` (contact `mailto:`/`https:` URL; a placeholder is used if missing), and optionally `ALLOW_LOCAL=1` to accept calls from `http://localhost:5195` during development. The cron secret is kept in Supabase Vault for the cron job. Browser calls are only accepted from the published site's origin.
 
+## Plan calendar mirror
+Files: `supabase/functions/tempo-cal/` (function + pure logic in lib.ts, tests: `node scripts/test-cal.mjs`), `supabase/calendar.sql` (job queue, trigger on saved plans, 10-second cron), `scripts/setup-calendar.cjs` (installer).
+
+Every saved plan (app replan / missed / add to plan, or the planner routine) is written into the "Plan" Google calendar within ~15 s, through a Google service account the Plan calendar is shared with. Only events it owns are changed (extendedProperties.private.todo = 1, or a description starting with "to-do plan"); meetings and other events are never touched. Events use the calendar's default notification, so set Plan's default to a popup at 0 minutes.
+
+Setup: `node scripts/setup-calendar.cjs --key <service-account.json> --calendar <Plan calendar id>`. Keep the key file in `.secrets/` (gitignored).
+
 ## Day plans
 One plan per date (`plans` in the saved data, `plan` records in sync), shown as a timeline on Today with a score and streak. Shape and rules are documented at the top of `docs/js/plan.js`. Tests: `node scripts/test-plan.mjs`.
 

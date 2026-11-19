@@ -77,6 +77,7 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 - Score + streak replace the progress line. "Replan from now" button.
 
 ### Phase 3: Google Calendar (planner built)
+- Since 2026-11-19 the server mirrors every saved plan into the Plan calendar (Replan, Missed, add to plan included), so the calendar always shows the real times. See README "Plan calendar mirror".
 - `scripts/plan-day.mjs` builds a day from the meetings + synced tasks and habits, saves it to the app (`--write`) and exports the calendar events (`--events`).
 - Meetings live in the personal calendar; only planned blocks go into the "Plan" calendar, each with an alert at its start.
 - Habits whose name starts with a time ("8:00 żelazo") become 5-minute reminders at that time. No prep before meetings outside work hours.

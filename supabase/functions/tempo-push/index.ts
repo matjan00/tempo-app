@@ -28,6 +28,9 @@ const SCORED = ['task', 'habit', 'personal'];
 // reliably than web push), except for blocks added or moved in the app (cal: false), which the calendar
 // doesn't know about. Set to true to send every start from here too.
 const START_ALERTS = false;
+// With the calendar mirror on (tempo-cal, secret CAL_SYNC=1) the calendar also has the added and moved blocks,
+// so no start alerts come from here at all: one alert per start.
+const CAL_SYNC = Deno.env.get('CAL_SYNC') === '1';
 const STALE_S = 600; // a block that ended more than 10 minutes ago is not announced any more
 // Waits are worked out from wall-clock times, which jump by an hour on a daylight-saving day: a wait of many
 // hours would then wake up an hour late, after the block's alert went stale. Look again at least this often.
@@ -113,7 +116,7 @@ async function blockAlarms() {
     // start alerts for every block (meetings too); "done?" alerts at the end of task / habit / personal blocks
     const events = [
       // starts: the calendar announces planned blocks; blocks added or moved in the app (cal: false) are announced here
-      ...live.filter((b) => START_ALERTS || b.cal === false).map((b) => ({ at: hhmmSec(b.start), b, kind: 'start' })),
+      ...live.filter((b) => START_ALERTS || (b.cal === false && !CAL_SYNC)).map((b) => ({ at: hhmmSec(b.start), b, kind: 'start' })),
       ...live.filter((b) => SCORED.includes(b.kind)).map((b) => ({ at: hhmmSec(b.end), b, kind: 'end' })),
     ];
     const sinceSec = Math.max(sec - STALE_S, sec - Math.max(0, Math.round((now.getTime() - new Date(d.checked_until).getTime()) / 1000)));

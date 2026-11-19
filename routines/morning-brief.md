@@ -12,7 +12,8 @@ them with the meetings in today's plan (`node scripts/sync.cjs pull plan`, the p
 
 The plan's calendar events include a "Top 3: …" event at 07:45 (description `to-do plan · brief`): that popup
 is the brief the user actually sees on the locked phone (Gmail never notifies about mail sent to yourself).
-When you rebuild, write the calendar exactly as evening review step 4, so that event is replaced too.
+When you rebuild, the server rewrites the Plan calendar (and that event) by itself: just check it as in evening
+review step 4.
 
 ## 2. Email the brief (a full copy for reference)
 Send one plain-text email with Gmail to the user's own address (given in the routine prompt), nothing else.

@@ -24,11 +24,14 @@ and anything whose description starts with `to-do plan`. Write them to `m.json` 
 `node scripts/plan-day.mjs --date <tomorrow> --meetings m.json --write --events e.json`
 If it refuses because tomorrow already has ticked blocks, don't force it: say so in your message.
 
-## 4. Write the Plan calendar
-Find the calendar named "Plan" (list calendars). List its events for tomorrow and delete the ones whose
-description starts with `to-do plan`. Then create one event per entry in `e.json` on Plan: same summary,
-start/end, colorId and description, **a popup reminder at 0 minutes** (overrideReminders: popup, 0: this is
-the start alert on the user's locked phone) and no notifications to anyone (notificationLevel NONE).
+## 4. Check the Plan calendar (the server writes it)
+Saving the plan (step 3) is enough: the server (tempo-cal) mirrors every saved plan into the calendar named
+"Plan" within about 15 seconds, including the 07:45 "Top 3" brief event. **Don't write plan events yourself.**
+Wait ~30 seconds, then list tomorrow's events on Plan: there should be events whose description starts with
+`to-do plan` at the plan's times. Only if none appeared after a minute, fall back: delete tomorrow's
+`to-do plan` events and create one per entry in `e.json` (same summary, start/end, colorId, description,
+overrideReminders as given, notificationLevel NONE), and say in your message that the calendar mirror
+seems down.
 
 ## 5. Your message (this is the review)
 ```
@@ -53,8 +56,7 @@ Leave out sections that are empty. If tomorrow is Saturday or Sunday, skip steps
 - "done N": `node scripts/review.mjs done <today> <blockId>`.
 - Changes to tomorrow: `node scripts/sync.cjs pull plan`, take tomorrow's plan, edit its `blocks` (keep the
   block format described at the top of `docs/js/plan.js`; no overlaps; nothing after 22:00), save it with
-  `node scripts/sync.cjs put plan <id> file.json`. Then redo step 4 using
-  `node scripts/review.mjs events <tomorrow> > e.json`.
+  `node scripts/sync.cjs put plan <id> file.json`. The server updates the Plan calendar by itself (step 4).
 - A new task: add it as a task record (`node scripts/sync.cjs put task <12 hex chars> file.json` with at least
   `title`, `area` ("work" or "personal"), `due`, `created` (ms), `done: false`), then place it like a change.
 - Reply with a one-line confirmation and the changed times only.
