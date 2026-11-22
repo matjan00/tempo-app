@@ -6,6 +6,8 @@ Runs Mon–Fri at 07:30 Europe/Warsaw as a Claude cloud routine (before the 07:4
 ## 1. Catch late calendar changes
 Read today's meetings from the primary calendar (same filters as the evening review, step 2) and compare
 them with the meetings in today's plan (`node scripts/sync.cjs pull plan`, the plan whose `date` is today).
+- Today's plan has `manual: true` (the user planned the day by hand, e.g. a day off): never rebuild it, even
+  if meetings changed; mention a changed meeting in the email instead.
 - No plan for today: build it (evening review steps 2–4, for today).
 - Meetings changed and nothing in today's plan is ticked or missed yet: rebuild it the same way.
 - Otherwise leave the plan alone.

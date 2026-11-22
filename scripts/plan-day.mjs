@@ -3,7 +3,7 @@
 //   node scripts/plan-day.mjs --date 2026-11-19 --meetings meetings.json   preview (changes nothing)
 //   node scripts/plan-day.mjs --date 2026-11-19 --meetings - --write        save it to the app (via sync)
 //   add --events events.json to also write the calendar events (for the "Plan" Google calendar) to a file
-//   add --force to replace a plan that already has ticked blocks
+//   add --force to replace a plan that already has ticked blocks, or one marked manual: true (made by hand)
 //
 // meetings.json: [{ "title": "Standup", "start": "10:00", "end": "10:30" }, ...]  (local times, that day)
 //
@@ -260,6 +260,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const of = (k) => recs.filter((r) => r.kind === k).map((r) => ({ ...r.data, id: r.id }));
     const plans = of('plan');
     const existing = planFor(plans, date);
+    if (existing?.manual && !has('force')) throw new Error(`${date} has a plan the user made by hand (manual: true, e.g. a day off). Edit it instead, or use --force to replace it.`);
     if (existing && existing.blocks?.some((b) => b.status !== 'planned') && !has('force')) throw new Error(`${date} already has a plan with ticked or missed blocks. Use --force to replace it.`);
     const result = buildPlan({
       date,

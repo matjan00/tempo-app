@@ -1,7 +1,8 @@
 // Day plans: pure functions only (no screen, no storage), so the planner script can use them too.
 //
 // A plan is one record per date:
-//   { id: 'd20261119', date: '2026-11-19', made: <ms>, blocks: [block, ...] }
+//   { id: 'd20261119', date: '2026-11-19', made: <ms>, manual?: true, blocks: [block, ...] }
+//   manual: the user planned this day by hand (e.g. a day off); the planner and routines never rebuild it.
 // A block:
 //   { id, start: '08:00', end: '08:50', kind, title, area?, taskId?, habitId?, status, reason?, moved?, copyOf? }
 //   kind:   meeting | prep | lunch | break   (fixed: never moved, never scored)
