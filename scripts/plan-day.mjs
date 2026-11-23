@@ -3,6 +3,7 @@
 //   node scripts/plan-day.mjs --date 2026-11-19 --meetings meetings.json   preview (changes nothing)
 //   node scripts/plan-day.mjs --date 2026-11-19 --meetings - --write        save it to the app (via sync)
 //   add --events events.json to also write the calendar events (for the "Plan" Google calendar) to a file
+//   add --off for a day off (personal tasks from the morning, breakfast, no work)
 //   add --force to replace a plan that already has ticked blocks, or one marked manual: true (made by hand)
 //
 // meetings.json: [{ "title": "Standup", "start": "10:00", "end": "10:30" }, ...]  (local times, that day)
@@ -11,6 +12,7 @@
 // free work time filled, hardest work in the biggest gaps before 11:00, personal things and habits after
 // 16:00 (capped so evenings stay light), nothing after 22:00. What doesn't fit is listed as overflow.
 // Exception: short breaks like chess (WORK_BREAKS in docs/js/plan.js) go inside work hours after 11:00.
+// Personal tasks due that day are never cut by the evening cap. --off plans a day off (see buildPlan).
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -31,6 +33,17 @@ export const RULES = {
   defaultPersonal: 25,
   maxBlock: 120, // longest guessed block
   maxDur: 240, // longest block for a task with its own duration
+  morningFrom: '07:50', // "rano"/"morning" tasks: reminders before the day starts
+  morningLen: 5, // their length when the task has no duration of its own
+  breakfast: { len: 30, from: '08:00', title: 'Śniadanie' }, // days off only
+};
+
+// Tasks whose title says when: "rano"/"morning" → a reminder before 08:00; "13:00 Spacer" → at 13:00
+// (or right after whatever is on then), like timed habits.
+const isMorning = (t) => /(^|\s)(rano|z rana|morning)(\s|$)/i.test(String(t?.title || ''));
+const timeIn = (title) => {
+  const m = /^(\d{1,2})[:.](\d{2})\s+/.exec(String(title || ''));
+  return m && +m[1] <= 23 && +m[2] <= 59 ? +m[1] * 60 + +m[2] : null;
 };
 
 const ceil5 = (m) => Math.ceil(m / 5) * 5;
@@ -58,7 +71,9 @@ const byRank = (date, missed) => (a, b) => {
   return 0;
 };
 
-export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPlan = null, focus = 25 }) {
+// off: a day off (no work). No prep, a breakfast block, work tasks wait, and personal tasks fill the whole
+// day from the morning instead of waiting for 16:30.
+export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPlan = null, focus = 25, off = false }) {
   habits = [...habits];
   const notes = [];
   const blocks = [];
@@ -74,6 +89,7 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
 
   // 2. prep before each work-hours meeting, where the 10 minutes are free (a haircut needs none)
   for (const m of ms) {
+    if (off) break;
     if (toMin(m.start) < toMin(DAY.workStart) || toMin(m.start) >= toMin(DAY.workEnd)) continue;
     const s = toMin(m.start) - RULES.prep;
     if (s < toMin(DAY.wake)) continue;
@@ -129,8 +145,36 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     return slots[0][0];
   };
   const reserve = (start, len) => blocks.push({ id: `gap${blocks.length}`, kind: 'break', title: '', start: fromMin(start + len), end: fromMin(start + len + RULES.gap), status: 'planned', _gap: true });
+  const at = (from, len) => free(fromMin(from), DAY.end).map(([a, b]) => [ceil5(a), b]).find(([a, b]) => b - a >= len)?.[0] ?? null;
+  const putTask = (t, s, len) => {
+    blocks.push({ id: `t-${t.id}`, kind: 'personal', area: 'personal', title: t.title, taskId: t.id, start: fromMin(s), end: fromMin(s + len), status: 'planned' });
+    reserve(s, len);
+    personal.splice(personal.indexOf(t), 1);
+  };
+
+  // 4b. personal tasks that say when: "rano" reminders first thing, breakfast on a day off, then "13:00 ..." tasks
+  for (const t of personal.filter((x) => isMorning(x) && timeIn(x.title) === null)) {
+    const len = Number(t.dur) > 0 ? taskLength(t, focus) : RULES.morningLen;
+    const s = at(toMin(RULES.morningFrom), len);
+    if (s === null) overflow.push({ task: t, why: 'no free slot in the morning' });
+    else putTask(t, s, len);
+  }
+  if (off) {
+    const s = at(toMin(RULES.breakfast.from), RULES.breakfast.len);
+    if (s !== null) blocks.push({ id: 'breakfast', kind: 'lunch', title: RULES.breakfast.title, start: fromMin(s), end: fromMin(s + RULES.breakfast.len), status: 'planned' });
+  }
+  for (const t of personal.filter((x) => timeIn(x.title) !== null)) {
+    const len = taskLength(t, focus);
+    const s = at(timeIn(t.title), len);
+    if (s === null) overflow.push({ task: t, why: 'no free slot at or after its time' });
+    else putTask(t, s, len);
+  }
 
   for (const t of work) {
+    if (off) {
+      overflow.push({ task: t, why: 'day off' });
+      continue;
+    }
     const len = taskLength(t, focus);
     if (usedWork + len > capWork && usedWork > 0) {
       overflow.push({ task: t, why: 'over the 70% limit' });
@@ -150,7 +194,7 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
   // 6. work-hour breaks (chess): personal, but they belong in work hours, after the morning focus time,
   //    at least an hour apart and 5 minutes clear of other blocks; they don't count towards the 70%.
   //    No slot left: they go to the evening like any personal task.
-  const breaks = personal.filter((t) => isWorkBreak(t.title));
+  const breaks = off ? [] : personal.filter((t) => isWorkBreak(t.title));
   for (const t of breaks) {
     const len = taskLength(t, focus);
     const spaced = blocks.filter((b) => isWorkBreak(b.title)).map((b) => ({ ...b, start: fromMin(toMin(b.start) - 60), end: fromMin(toMin(b.end) + 60) }));
@@ -163,25 +207,30 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     personal.splice(personal.indexOf(t), 1);
   }
 
-  // 7. evening: personal tasks first, then habits
-  const freeEve = free(RULES.eveningFrom, DAY.end).reduce((n, [a, b]) => n + b - a, 0);
-  const capEve = Math.min(RULES.eveningMax, Math.round(freeEve * RULES.fill));
+  // 7. evening (a day off: the whole day): personal tasks first, then habits. The limit only holds back
+  //    tasks that can wait: one due that day (or overdue, or missed yesterday) still goes in if a slot is free.
+  const eveFrom = off ? DAY.workStart : RULES.eveningFrom;
+  const freeEve = free(eveFrom, DAY.end).reduce((n, [a, b]) => n + b - a, 0);
+  const capEve = off ? Math.round(freeEve * RULES.fill) : Math.min(RULES.eveningMax, Math.round(freeEve * RULES.fill));
+  const mustDo = (t) => missed.has(t.id) || (t.due && t.due <= date);
   let usedEve = 0;
   const evening = [
     ...personal.map((t) => ({ len: taskLength(t, focus), block: { id: `t-${t.id}`, kind: 'personal', area: 'personal', title: t.title, taskId: t.id }, task: t })),
     ...habits.filter((h) => h && h.title?.trim()).map((h) => ({ len: RULES.habitLen, block: { id: `h-${h.id}`, kind: 'habit', title: h.title, habitId: h.id } })),
   ];
   for (const e of evening) {
-    if (usedEve + e.len > capEve) {
-      if (e.task) overflow.push({ task: e.task, why: 'evening already full' });
-      else notes.push(`habit "${e.block.title}" not given a time (evening full); it still shows under Habits`);
+    const over = usedEve + e.len > capEve;
+    if (over && !(e.task && mustDo(e.task))) {
+      if (e.task) overflow.push({ task: e.task, why: off ? 'day already full' : 'evening already full' });
+      else notes.push(`habit "${e.block.title}" not given a time (${off ? 'day' : 'evening'} full); it still shows under Habits`);
       continue;
     }
-    const s = place(e.len, RULES.eveningFrom, DAY.end, 'any');
+    const s = place(e.len, eveFrom, DAY.end, 'any');
     if (s === null) {
-      if (e.task) overflow.push({ task: e.task, why: 'no free slot in the evening' });
+      if (e.task) overflow.push({ task: e.task, why: off ? 'no free slot left' : 'no free slot in the evening' });
       continue;
     }
+    if (over) notes.push(`"${e.task.title}" is due, so it went in over the ${off ? 'day' : 'evening'} limit`);
     blocks.push({ ...e.block, start: fromMin(s), end: fromMin(s + e.len), status: 'planned' });
     reserve(s, e.len);
     usedEve += e.len;
@@ -190,10 +239,10 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
   // every block goes into the Plan calendar (meetings are already in the primary one): starts are announced there
   const final = blocks.filter((b) => !b._gap).map((b) => ({ ...b, cal: true }));
   return {
-    plan: cleanPlan({ id: planId(date), date, made: Date.now(), blocks: final }),
+    plan: cleanPlan({ id: planId(date), date, made: Date.now(), ...(off ? { off: true } : {}), blocks: final }),
     overflow,
     notes,
-    stats: { freeWork, capWork, usedWork, capEve, usedEve },
+    stats: { off, freeWork, capWork, usedWork, capEve, usedEve },
   };
 }
 
@@ -231,9 +280,10 @@ export function calendarEvents(plan, timeZone = 'Europe/Warsaw') {
 }
 
 export function summary({ plan, overflow, notes, stats }) {
-  const lines = [`Plan for ${plan.date}`];
+  const lines = [`Plan for ${plan.date}${stats.off ? ' (day off)' : ''}`];
   for (const b of plan.blocks) lines.push(`  ${b.start}–${b.end}  ${b.kind.padEnd(8)} ${b.title}`);
-  lines.push(`  work: ${stats.usedWork} of ${stats.capWork} min planned (70% of ${stats.freeWork} free) · evening: ${stats.usedEve} of ${stats.capEve} min`);
+  if (stats.off) lines.push(`  day: ${stats.usedEve} of ${stats.capEve} min planned`);
+  else lines.push(`  work: ${stats.usedWork} of ${stats.capWork} min planned (70% of ${stats.freeWork} free) · evening: ${stats.usedEve} of ${stats.capEve} min`);
   for (const o of overflow) lines.push(`  didn't fit: ${o.task.title} (${o.why})`);
   for (const n of notes) lines.push(`  note: ${n}`);
   return lines.join('\n');
@@ -268,6 +318,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       tasks: of('task'),
       habits: of('habit'),
       prevPlan: planFor(plans, addDays(date, -1)),
+      off: has('off'),
       // focus stays 25: the focus timer (and its length setting) is gone; "*2" in the app means 2 x 25 min
     });
     console.log(summary(result));

@@ -82,6 +82,22 @@ process.exitCode = failed ? 1 : 0;
   const cb = chess.plan.blocks.find((b) => b.taskId === 'c');
   assert(cb && P.toMin(cb.start) >= P.toMin('11:00') && P.toMin(cb.end) <= P.toMin('16:00') && !overlaps(chess.plan), 'chess goes inside work hours after 11:00: ' + cb?.start);
   assert(chess.plan.blocks.every((b) => b.cal === true), 'every planned block is marked as in the calendar');
+  // personal tasks due that day are never cut by the evening limit (the dog walk went missing on 2026-11-24)
+  const eve = buildPlan({ date, tasks: [T('v', 'Vinted', 'personal', { dur: 60 }), T('p', 'Plan', 'personal', { dur: 30 }), T('d', 'Spacer z psem', 'personal', { dur: 60 }), T('s', 'Sprzątanie', 'personal', { dur: 30 }), T('later', 'Someday', 'personal', { dur: 30, due: null })] });
+  assert(['v', 'p', 'd', 's'].every((id) => eve.plan.blocks.some((b) => b.taskId === id)) && !overlaps(eve.plan), 'every personal task due that day gets a block, even over the evening limit');
+  assert(eve.overflow.some((o) => o.task.id === 'later'), 'an undated task still respects the evening limit');
+  const morning = buildPlan({ date, tasks: [T('m', 'Wyciągnąć rano mięso', 'personal')], habits: [{ id: 'fe', title: '8:00 żelazo' }] });
+  const mb = morning.plan.blocks.find((b) => b.taskId === 'm');
+  assert(mb?.start === '07:50' && mb.end === '07:55', 'a "rano" task is a 5-minute reminder before 08:00: ' + mb?.start + '–' + mb?.end);
+  // a day off
+  const off = buildPlan({ date, off: true, meetings: [{ title: 'Fryzjer', start: '11:00', end: '11:45' }], tasks: [T('m', 'Wyciągnąć rano mięso', 'personal'), T('w', 'Report', 'work', { dur: 60 }), T('d', '13:00 Spacer z psem', 'personal', { dur: 60 }), T('v', 'Vinted', 'personal', { dur: 60 })], habits: [{ id: 'fe', title: '8:00 żelazo' }] });
+  const ob = (id) => off.plan.blocks.find((b) => b.taskId === id || b.id === id);
+  assert(off.plan.off === true && !overlaps(off.plan), 'day off: plan is marked off, nothing overlaps');
+  assert(ob('breakfast')?.start === '08:05', 'day off: breakfast right after the morning things: ' + ob('breakfast')?.start);
+  assert(ob('d')?.start === '13:00', 'a task with a time in its title goes at that time: ' + ob('d')?.start);
+  assert(P.toMin(ob('v')?.start) < P.toMin('12:00'), 'day off: personal tasks go in the morning, not after 16:30: ' + ob('v')?.start);
+  assert(!ob('w') && off.overflow.some((o) => o.task.id === 'w' && o.why === 'day off'), 'day off: work tasks wait and are listed');
+  assert(!off.plan.blocks.some((b) => b.kind === 'prep'), 'day off: no prep before meetings');
 }
 
 // quick-add durations (docs/js/parse.js)

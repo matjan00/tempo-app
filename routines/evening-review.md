@@ -19,9 +19,12 @@ phone (Claude app) at 21:00 and may reply in this same session. Be brief: they r
 List events on the primary calendar for tomorrow 00:00–24:00. Skip all-day events, events the user declined,
 and anything whose description starts with `to-do plan`. Write them to `m.json` as
 `[{"title": "...", "start": "HH:MM", "end": "HH:MM"}]` (local time; clip anything crossing midnight).
+**Day off:** if tomorrow has an all-day event on the primary calendar whose title contains "wolne", "urlop",
+"off", "holiday" or "vacation" (any case), or the user said tomorrow is a day off, tomorrow is a day off.
 
 ## 3. Build and save the plan
-`node scripts/plan-day.mjs --date <tomorrow> --meetings m.json --write --events e.json`
+`node scripts/plan-day.mjs --date <tomorrow> --meetings m.json --write --events e.json` (add `--off` on a
+day off: personal tasks then fill the day from the morning, with breakfast, and work tasks wait).
 If it refuses because tomorrow already has ticked blocks, don't force it: say so in your message.
 If it refuses because tomorrow's plan is `manual: true` (the user planned it by hand, e.g. a day off), never
 force it: skip step 4 and show that plan as it is under "Tomorrow" (mark it "planned by you").
@@ -61,7 +64,8 @@ Leave out sections that are empty. If tomorrow is Saturday or Sunday, skip steps
 - Changes to tomorrow: `node scripts/sync.cjs pull plan`, take tomorrow's plan, edit its `blocks` (keep the
   block format described at the top of `docs/js/plan.js`; no overlaps; nothing after 22:00), save it with
   `node scripts/sync.cjs put plan <id> file.json`. The server updates the Plan calendar by itself (step 4).
-  If the user dictates their own day ("tomorrow I'm off, plan X, Y, Z"), build those blocks (kind `personal`,
+  If the user only says tomorrow is a day off, rerun step 3 with `--off --force` (only if tomorrow has no
+  ticked blocks). If the user dictates their own day ("tomorrow I'm off, plan X, Y, Z"), build those blocks (kind `personal`,
   or `task` for work), keep the habit blocks, and set `manual: true` on the plan so nothing rebuilds it.
 - A new task: add it as a task record (`node scripts/sync.cjs put task <12 hex chars> file.json` with at least
   `title`, `area` ("work" or "personal"), `due`, `created` (ms), `done: false`), then place it like a change.

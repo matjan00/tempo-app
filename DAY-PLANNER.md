@@ -49,7 +49,13 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
    - The top-ranked (hardest) ones go into the largest gaps that start before 11:00.
    - Lighter work (admin, short tasks) goes into short gaps and after 11:00.
    - Block length follows the task's estimate in pomodoros (1 = 25 min, 2 = 50 min…), so each block can be run with the app's focus timer.
-5. Habits and personal tasks go after 16:00, in the same order of priority.
+5. Habits and personal tasks go after 16:00, in the same order of priority. The evening is capped at 2 hours,
+   but a personal task due that day (or overdue) still goes in if there is a free slot.
+   - A task with "rano" / "morning" in its name is a 5-minute reminder from 07:50 (unless it has a duration).
+   - A task whose name starts with a time ("13:00 Spacer z psem") goes at that time, like timed habits.
+   - **Day off** (an all-day "wolne"/"urlop" event in your calendar, or you tell the evening review; `plan-day.mjs --off`):
+     no prep, breakfast after the morning reminders, personal tasks fill the day from 08:00 (70% of free time),
+     work tasks wait and are listed.
 6. Anything that doesn't fit stays in the list with a "didn't fit" tag, so you see the overflow and can cut or move it in the review.
 7. "Replan from now" button in the app: if a meeting moves during the day, the rest of the day is rebuilt from the current time.
 
