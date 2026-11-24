@@ -17,10 +17,10 @@ export const FIXED = ['meeting', 'prep', 'lunch', 'break'];
 export const SCORED = ['task', 'habit', 'personal'];
 export const DAY = { wake: '07:30', workStart: '08:00', workEnd: '16:00', end: '22:00' };
 export const STREAK_PCT = 80;
-// Personal things that belong inside work hours (short breaks): placed after the morning focus time
+// Personal things that belong inside work hours (short breaks): placed after the morning focus blocks
 // (from WORK_BREAKS_FROM), spread apart, and only after work when no slot fits.
 export const WORK_BREAKS = [/\bchess\b/i, /\bszach/i];
-export const WORK_BREAKS_FROM = '11:00';
+export const WORK_BREAKS_FROM = '12:00'; // after the second focus block
 export const isWorkBreak = (title) => WORK_BREAKS.some((re) => re.test(String(title || '')));
 
 const pad = (n) => String(n).padStart(2, '0');

@@ -35,8 +35,13 @@ export const RULES = {
   maxDur: 240, // longest block for a task with its own duration
   morningFrom: '07:50', // "rano"/"morning" tasks: reminders before the day starts
   morningLen: 5, // their length when the task has no duration of its own
-  breakfast: { len: 30, from: '08:00', title: 'Śniadanie' }, // days off only
+  breakfast: { len: 30, from: '08:00', to: '09:00', title: 'Śniadanie' }, // work days: 08:00 sharp (after a meeting if one sits there)
+  // work days: two focus blocks for the important work tasks with a lighter half hour between them
+  // (meetings come first; the focus time is whatever they leave free)
+  focus: [['08:30', '10:00'], ['10:30', '12:00']],
+  light: { from: '10:00', to: '10:30', title: 'Luźniej' },
 };
+const inFocus = (s, e) => RULES.focus.some(([a, b]) => s < toMin(b) && toMin(a) < e);
 
 // Tasks whose title says when: "rano"/"morning" → a reminder before 08:00; "13:00 Spacer" → at 13:00
 // (or right after whatever is on then), like timed habits.
@@ -87,6 +92,13 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     .sort((a, b) => toMin(a.start) - toMin(b.start));
   blocks.push(...ms);
 
+  // 1b. breakfast on a work day: 08:00–08:30, or the first free half hour before 09:00
+  if (!off) {
+    const s = free(RULES.breakfast.from, RULES.breakfast.to).find(([a, b]) => b - a >= RULES.breakfast.len)?.[0];
+    if (s !== undefined) blocks.push({ id: 'breakfast', kind: 'lunch', title: RULES.breakfast.title, start: fromMin(s), end: fromMin(s + RULES.breakfast.len), status: 'planned' });
+    else notes.push('no free half hour for breakfast between 08:00 and 09:00');
+  }
+
   // 2. prep before each work-hours meeting, where the 10 minutes are free (a haircut needs none)
   for (const m of ms) {
     if (off) break;
@@ -109,7 +121,7 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
   }
 
   // 4. habits whose name starts with a time ("8:00 iron") go at that time as a 5-minute reminder,
-  //    or right after whatever is on at that time
+  //    or right after whatever is on at that time (a meal doesn't push it: pills go with breakfast or lunch)
   const timed = [];
   habits = habits.filter((h) => {
     const m = /^(\d{1,2})[:.](\d{2})\s+/.exec(h?.title || '');
@@ -119,7 +131,7 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
   });
   for (const { h, at } of timed) {
     const len = 5;
-    const slot = freeSlots(plan(), at, toMin('23:59')).find(([a, b]) => b - a >= len);
+    const slot = freeSlots({ blocks: blocks.filter((b) => b.kind !== 'lunch') }, at, toMin('23:59')).find(([a, b]) => b - a >= len);
     if (!slot) continue;
     blocks.push({ id: `h-${h.id}`, kind: 'habit', title: h.title, habitId: h.id, start: fromMin(slot[0]), end: fromMin(slot[0] + len), status: 'planned' });
   }
@@ -139,8 +151,21 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     const slots = free(lo, hi).map(([a, b]) => [ceil5(a), b]).filter(([a, b]) => b - a >= len);
     if (!slots.length) return null;
     if (prefer === 'deep') {
+      // focus blocks first, earliest first, the whole task inside one of them
+      for (const [fa, fb] of RULES.focus) {
+        const s = slots.map(([a, b]) => [Math.max(a, toMin(fa)), Math.min(b, toMin(fb))]).find(([a, b]) => b - a >= len);
+        if (s) return s[0];
+      }
       const early = slots.filter(([a]) => a < toMin(RULES.deepBefore)).sort((x, y) => y[1] - y[0] - (x[1] - x[0]));
       if (early.length) return early[0][0];
+    }
+    if (prefer === 'light') {
+      // lighter work keeps the focus blocks free: the light half hour, then anything outside the focus blocks
+      const out = slots.find(([a, b]) => {
+        for (let s = a; s + len <= b; s += 5) if (!inFocus(s, s + len)) return true;
+        return false;
+      });
+      if (out) for (let s = out[0]; s + len <= out[1]; s += 5) if (!inFocus(s, s + len)) return s;
     }
     return slots[0][0];
   };
@@ -170,6 +195,9 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     else putTask(t, s, len);
   }
 
+  // important tasks take the focus blocks first; the rest keep their rank order
+  const important = (t) => (t.prio || 0) >= 2 || taskLength(t, focus) >= 50;
+  work.sort((a, b) => important(b) - important(a));
   for (const t of work) {
     if (off) {
       overflow.push({ task: t, why: 'day off' });
@@ -180,8 +208,8 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
       overflow.push({ task: t, why: 'over the 70% limit' });
       continue;
     }
-    const deep = (t.prio || 0) >= 3 || len >= 50;
-    const s = place(len, DAY.workStart, DAY.workEnd, deep ? 'deep' : 'any');
+    const deep = (t.prio || 0) >= 2 || len >= 50; // important: !1 / !2, or a long task
+    const s = place(len, DAY.workStart, DAY.workEnd, deep ? 'deep' : 'light');
     if (s === null) {
       overflow.push({ task: t, why: 'no free slot long enough' });
       continue;
@@ -189,6 +217,14 @@ export function buildPlan({ date, meetings = [], tasks = [], habits = [], prevPl
     blocks.push({ id: `t-${t.id}`, kind: 'task', area: 'work', title: t.title, taskId: t.id, start: fromMin(s), end: fromMin(s + len), status: 'planned' });
     reserve(s, len);
     usedWork += len;
+  }
+
+  // 5b. the light half hour between the focus blocks shows as "Luźniej" when no light task took it
+  if (!off) {
+    const [a, b] = [toMin(RULES.light.from), toMin(RULES.light.to)];
+    const f = freeSlots({ blocks: blocks.filter((x) => !x._gap) }, a, b);
+    if (f.length === 1 && f[0][0] === a && f[0][1] === b)
+      blocks.push({ id: 'light', kind: 'break', title: RULES.light.title, start: RULES.light.from, end: RULES.light.to, status: 'planned' });
   }
 
   // 6. work-hour breaks (chess): personal, but they belong in work hours, after the morning focus time,

@@ -32,22 +32,23 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 | Lunch | about 14:00, 30 min, protected (slides a little if a meeting sits on it) |
 | Phone | Android: alarms have Done / Missed buttons right in the notification |
 | Evening review | on your phone, in the Claude app, 21:00 |
-| Hardest work | 8:00–11:00, in the biggest gaps between meetings |
+| Morning (work days) | breakfast 8:00–8:30 · focus 8:30–10:00 · lighter 10:00–10:30 · focus 10:30–12:00 (meetings win; focus is what they leave free) |
 | Meetings | 10 min prep block before each one |
 | How full | about 70% of free time planned; the rest is slack |
-| Personal | personal tasks and habits planned after 16:00, nothing after 22:00; **chess** is the exception: inside work hours after 11:00, an hour apart (evening only if no slot) |
+| Personal | personal tasks and habits planned after 16:00, nothing after 22:00; **chess** is the exception: inside work hours after 12:00, an hour apart (evening only if no slot) |
 | Missed block | moves to next free slot (or tomorrow), counts against the score, one-line reason |
 | Accountability | block alarms, evening review 21:00, daily score + streak, morning brief email |
 | Today screen | the daily score + streak replaces the current "x of y done" progress line |
 
 ## How the planner fills a day
 
-1. Fixed first: meetings from your personal calendar, then 10 min prep before each, then lunch around 14:00.
+1. Fixed first: meetings from your personal calendar, breakfast 8:00–8:30 (right after a meeting if one sits there), 10 min prep before each meeting, lunch around 14:00. Timed pills ("8:00 żelazo") stay at their time during a meal.
 2. Free gaps are listed for 8:00–16:00 and 16:00–22:00.
 3. Capacity = 70% of each gap's minutes. The rest stays empty on purpose.
 4. Work tasks are ranked: overdue / missed yesterday → due tomorrow → priority → older.
-   - The top-ranked (hardest) ones go into the largest gaps that start before 11:00.
-   - Lighter work (admin, short tasks) goes into short gaps and after 11:00.
+   - Important ones (!1 / !2, or 50 min and longer) go first, into the focus blocks 8:30–10:00 and 10:30–12:00, earliest free first.
+     A task too long for one focus block goes into the biggest gap before 11:00.
+   - Lighter work goes into the half hour 10:00–10:30, then outside the focus blocks. If nothing light takes it, it shows as "Luźniej".
    - Block length follows the task's estimate in pomodoros (1 = 25 min, 2 = 50 min…), so each block can be run with the app's focus timer.
 5. Habits and personal tasks go after 16:00, in the same order of priority. The evening is capped at 2 hours,
    but a personal task due that day (or overdue) still goes in if there is a free slot.
