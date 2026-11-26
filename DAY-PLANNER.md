@@ -35,30 +35,37 @@ Fri 21:00  weekly report · Sun 21:00  Monday's plan
 | Morning (work days) | breakfast 8:00–8:30 · focus 8:30–10:00 · lighter 10:00–10:30 · focus 10:30–12:00 (meetings win; focus is what they leave free) |
 | Meetings | 10 min prep block before each one |
 | How full | about 70% of free time planned; the rest is slack |
-| Personal | personal tasks and habits planned after 16:00, nothing after 22:00; **chess** is the exception: inside work hours after 12:00, an hour apart (evening only if no slot) |
+| Breakfast | your own wins: a task or calendar event called "śniadanie" (e.g. "8:30 śniadanie") replaces the planner's 8:00 one |
+| Personal | personal tasks planned after 16:00, nothing after 22:00 |
+| Habits | take up no time, you just tick them; only timed ones ("8:00 żelazo") get a reminder at that time, on top of whatever is there |
+| Chess | every day 2 × 20 min, wherever there is room 8:00–22:00 (work hours or evening), never in the focus blocks, an hour apart |
 | Missed block | moves to next free slot (or tomorrow), counts against the score, one-line reason |
 | Accountability | block alarms, evening review 21:00, daily score + streak, morning brief email |
 | Today screen | the daily score + streak replaces the current "x of y done" progress line |
 
 ## How the planner fills a day
 
-1. Fixed first: meetings from your personal calendar, breakfast 8:00–8:30 (right after a meeting if one sits there), 10 min prep before each meeting, lunch around 14:00. Timed pills ("8:00 żelazo") stay at their time during a meal.
+1. Fixed first: meetings from your personal calendar, breakfast 8:00–8:30 (right after a meeting if one sits there; skipped when you added your own "śniadanie" task or event, which stays at its time), 10 min prep before each meeting, lunch around 14:00.
 2. Free gaps are listed for 8:00–16:00 and 16:00–22:00.
 3. Capacity = 70% of each gap's minutes. The rest stays empty on purpose.
-4. Work tasks are ranked: overdue / missed yesterday → due tomorrow → priority → older.
+4. Work tasks are ranked: missed yesterday → overdue → due that day → no date → due later, then priority → older.
    - Important ones (!1 / !2, or 50 min and longer) go first, into the focus blocks 8:30–10:00 and 10:30–12:00, earliest free first.
      A task too long for one focus block goes into the biggest gap before 11:00.
    - Lighter work goes into the half hour 10:00–10:30, then outside the focus blocks. If nothing light takes it, it shows as "Luźniej".
    - Block length follows the task's estimate in pomodoros (1 = 25 min, 2 = 50 min…), so each block can be run with the app's focus timer.
-5. Habits and personal tasks go after 16:00, in the same order of priority. The evening is capped at 2 hours,
+5. Chess: two 20-minute sessions in the first free slots from 08:00 (the light half hour, after 12:00, the evening…),
+   never inside the focus blocks, an hour apart. A "Chess"/"Szachy" task for the day becomes one of them.
+6. Habits take no time: they're ticked on Today / Habits. A timed one ("8:00 żelazo") is a 5-minute reminder at exactly its time,
+   even on top of a meal or a task.
+7. Personal tasks go after 16:00, in the same order of priority. The evening is capped at 2 hours,
    but a personal task due that day (or overdue) still goes in if there is a free slot.
    - A task with "rano" / "morning" in its name is a 5-minute reminder from 07:50 (unless it has a duration).
    - A task whose name starts with a time ("13:00 Spacer z psem") goes at that time, like timed habits.
    - **Day off** (an all-day "wolne"/"urlop" event in your calendar, or you tell the evening review; `plan-day.mjs --off`):
      no prep, breakfast after the morning reminders, personal tasks fill the day from 08:00 (70% of free time),
      work tasks wait and are listed.
-6. Anything that doesn't fit stays in the list with a "didn't fit" tag, so you see the overflow and can cut or move it in the review.
-7. "Replan from now" button in the app: if a meeting moves during the day, the rest of the day is rebuilt from the current time.
+8. Anything that doesn't fit stays in the list with a "didn't fit" tag, so you see the overflow and can cut or move it in the review.
+9. "Replan from now" button in the app: if a meeting moves during the day, the rest of the day is rebuilt from the current time.
 
 ## Daily score and streak
 

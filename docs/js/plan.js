@@ -7,6 +7,8 @@
 //   { id, start: '08:00', end: '08:50', kind, title, area?, taskId?, habitId?, status, reason?, moved?, copyOf? }
 //   kind:   meeting | prep | lunch | break   (fixed: never moved, never scored)
 //           task | habit | personal          (scored: count towards the day's score)
+//           habit blocks are reminders to tick: they never take up time (other blocks may overlap them)
+//           and are never moved.
 //   status: planned | done | missed
 //   moved:  'HH:MM' (moved to later today) or 'tomorrow', set on a missed block
 //   copyOf: id of the missed block this one replaces. Copies are a second chance, not part of the score.
@@ -17,11 +19,16 @@ export const FIXED = ['meeting', 'prep', 'lunch', 'break'];
 export const SCORED = ['task', 'habit', 'personal'];
 export const DAY = { wake: '07:30', workStart: '08:00', workEnd: '16:00', end: '22:00' };
 export const STREAK_PCT = 80;
-// Personal things that belong inside work hours (short breaks): placed after the morning focus blocks
-// (from WORK_BREAKS_FROM), spread apart, and only after work when no slot fits.
-export const WORK_BREAKS = [/\bchess\b/i, /\bszach/i];
-export const WORK_BREAKS_FROM = '12:00'; // after the second focus block
-export const isWorkBreak = (title) => WORK_BREAKS.some((re) => re.test(String(title || '')));
+// Work-day focus time for the important work: nothing light (chess) goes in here.
+export const FOCUS = [['08:30', '10:00'], ['10:30', '12:00']];
+// Chess: CHESS_PER_DAY sessions of CHESS_LEN minutes every day, wherever there is room between 08:00 and 22:00
+// (work hours or evening), never inside the focus blocks, at least CHESS_APART minutes apart.
+// Only a task called just "Chess" / "Szachy" is a session; "Analiza partii szachowych" is an ordinary task.
+export const CHESS = /^\s*(chess|szachy)\s*$/i;
+export const CHESS_PER_DAY = 2;
+export const CHESS_LEN = 20;
+export const CHESS_APART = 60;
+export const isChess = (title) => CHESS.test(String(title || ''));
 
 const pad = (n) => String(n).padStart(2, '0');
 export const toMin = (hhmm) => {
@@ -104,7 +111,7 @@ export const currentBlock = (plan, at = nowMin()) =>
 // (anything not missed, minus the ones listed in `ignore`).
 export function freeSlots(plan, from, to, ignore = new Set()) {
   const busy = (plan?.blocks || [])
-    .filter((b) => b.status !== 'missed' && !ignore.has(b.id))
+    .filter((b) => b.status !== 'missed' && b.kind !== 'habit' && !ignore.has(b.id))
     .map((b) => [toMin(b.start), toMin(b.end)])
     .sort((a, b) => a[0] - b[0]);
   const out = [];
@@ -122,6 +129,7 @@ export function freeSlots(plan, from, to, ignore = new Set()) {
 // The window a block may move within: work stays inside work hours; personal things planned for after
 // work stay after work; anything else may go anywhere before the day ends.
 function windowFor(b) {
+  if (isChess(b.title) && b.kind !== 'task') return [toMin(DAY.workStart), toMin(DAY.end)];
   if (isWorkBlock(b)) return [toMin(DAY.workStart), toMin(DAY.workEnd)];
   if (toMin(b.start) >= toMin(DAY.workEnd)) return [toMin(DAY.workEnd), toMin(DAY.end)];
   return [toMin(DAY.wake), toMin(DAY.end)];
@@ -130,10 +138,18 @@ function windowFor(b) {
 // Round up to the next 5 minutes, so moved blocks start at tidy times.
 const ceil5 = (m) => Math.ceil(m / 5) * 5;
 
+// Pseudo-blocks that keep chess out of the focus time (not on a day off) and an hour away from other sessions.
+const focusBlocks = (plan) => (plan?.off ? [] : FOCUS.map(([start, end], i) => ({ id: '_focus' + i, start, end, status: 'planned' })));
+const chessSpacing = (plan) =>
+  (plan?.blocks || [])
+    .filter((b) => b.status !== 'missed' && isChess(b.title))
+    .map((b) => ({ id: '_sp' + b.id, start: fromMin(Math.max(0, toMin(b.start) - CHESS_APART)), end: fromMin(toMin(b.end) + CHESS_APART), status: 'planned' }));
+
 // Find a slot for `length` minutes for block `b`, starting no earlier than `at`.
 function findSlot(plan, b, length, at, ignore) {
   const [lo, hi] = windowFor(b);
-  for (const [s, e] of freeSlots(plan, Math.max(lo, ceil5(at)), hi, ignore)) if (e - s >= length) return s;
+  const p = isChess(b.title) && b.kind !== 'task' ? { blocks: [...plan.blocks, ...focusBlocks(plan)] } : plan;
+  for (const [s, e] of freeSlots(p, Math.max(lo, ceil5(at)), hi, ignore)) if (e - s >= length) return s;
   return null;
 }
 
@@ -148,7 +164,7 @@ export function missBlock(plan, blockId, reason = '', at = nowMin()) {
   if (!b) return { plan: p, moved: null };
   b.status = 'missed';
   if (reason) b.reason = String(reason).slice(0, 300);
-  if (FIXED.includes(b.kind)) return { plan: p, moved: null }; // a skipped meeting just stays skipped
+  if (FIXED.includes(b.kind) || b.kind === 'habit') return { plan: p, moved: null }; // a skipped meeting or habit just stays skipped
   const slot = findSlot(p, b, dur(b), at, new Set([b.id]));
   if (slot === null) {
     b.moved = 'tomorrow';
@@ -164,17 +180,17 @@ export function missBlock(plan, blockId, reason = '', at = nowMin()) {
 // Add a block (without times) in the first free slot from `at`: work inside work hours, anything else
 // after work (or from now, once work is over). Returns { plan, start } or null when nothing fits.
 export function placeBlock(plan, block, length, at = nowMin()) {
-  // chess & co: try work hours first (after the morning focus time, an hour away from another one), else after work
-  if (block.kind !== 'task' && isWorkBreak(block.title)) {
-    const others = plan.blocks.filter((b) => b.status !== 'missed' && isWorkBreak(b.title)).map((b) => ({ ...b, start: fromMin(Math.max(0, toMin(b.start) - 60)), end: fromMin(toMin(b.end) + 60) }));
-    const lo = Math.max(toMin(WORK_BREAKS_FROM), ceil5(at));
-    for (const [s, e] of freeSlots({ blocks: [...plan.blocks, ...others] }, lo, toMin(DAY.workEnd))) {
+  // chess: the first free slot from now (08:00–22:00), outside the focus blocks, an hour away from another session
+  if (block.kind !== 'task' && isChess(block.title)) {
+    const lo = Math.max(toMin(DAY.workStart), ceil5(at));
+    for (const [s, e] of freeSlots({ blocks: [...plan.blocks, ...focusBlocks(plan), ...chessSpacing(plan)] }, lo, toMin(DAY.end))) {
       if (e - s < length) continue;
       const p = structuredClone(plan);
       p.blocks.push({ status: 'planned', ...block, start: fromMin(s), end: fromMin(s + length), cal: false });
       p.blocks.sort((x, y) => toMin(x.start) - toMin(y.start));
       return { plan: p, start: fromMin(s) };
     }
+    return null;
   }
   const work = block.kind === 'task' && block.area !== 'personal';
   const lo = work ? toMin(DAY.workStart) : Math.max(toMin(DAY.workEnd), at);
@@ -193,14 +209,14 @@ export function placeBlock(plan, block, length, at = nowMin()) {
 // - unticked blocks that already ended become missed ("not done before replanning") and get a copy;
 // - planned blocks still ahead keep their time unless something now overlaps them; then they are pushed
 //   later (never earlier), in their original order;
-// - fixed blocks (meetings, prep, lunch) and the block in progress stay where they are;
+// - fixed blocks (meetings, prep, lunch), habit reminders and the block in progress stay where they are;
 // - whatever doesn't fit is marked missed and moved to tomorrow.
 // Returns { plan, tomorrow: [blocks sent to tomorrow] }.
 export function replanFrom(plan, at = nowMin()) {
   const p = structuredClone(plan);
   const queue = [];
   for (const b of p.blocks) {
-    if (FIXED.includes(b.kind) || b.status !== 'planned') continue;
+    if (FIXED.includes(b.kind) || b.kind === 'habit' || b.status !== 'planned') continue;
     const s = toMin(b.start), e = toMin(b.end);
     if (s <= at && at < e) continue; // in progress: leave it
     if (e <= at) {

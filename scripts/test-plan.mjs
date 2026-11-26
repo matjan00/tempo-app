@@ -51,17 +51,30 @@ assert(P.replanFrom(plan, P.toMin('12:00')).plan.blocks.find((b) => b.copyOf ===
 assert(P.missBlock(plan, 'report', '', P.toMin('11:20')).plan.blocks.find((b) => b.copyOf === 'report').cal === false, 'missed copies are marked not in calendar');
 process.exitCode = failed ? 1 : 0;
 
-// chess goes inside work hours (after 11:00, an hour apart), else after work
+// chess: the first free slot from now, work hours or evening, never in the focus blocks, an hour apart
 {
   const base = { blocks: [B('m', '12:00', '12:30', 'meeting'), B('l', '14:00', '14:30', 'lunch')] };
   let r1 = P.placeBlock(base, { id: 'c1', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('09:00'));
-  assert(r1?.start === '12:30', 'chess added in the morning goes after the focus blocks (12:00, here after the meeting), not the evening: ' + r1?.start);
+  assert(r1?.start === '10:00', 'chess added during focus time waits for the gap between the focus blocks: ' + r1?.start);
   const r2 = P.placeBlock(r1.plan, { id: 'c2', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('09:00'));
-  assert(P.toMin(r2?.start) >= P.toMin('13:50'), 'a second chess block keeps an hour from the first: ' + r2?.start);
-  const late = P.placeBlock(base, { id: 'c3', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('15:50'));
-  assert(late?.start === '16:00', 'chess with no work slot left goes after work: ' + late?.start);
+  assert(r2?.start === '12:30', 'a second chess block keeps an hour from the first and stays out of focus time: ' + r2?.start);
+  const late = P.placeBlock(base, { id: 'c3', kind: 'personal', area: 'personal', title: 'Szachy' }, 20, P.toMin('15:50'));
+  assert(late?.start === '15:50', 'chess fits wherever there is room, work hours included: ' + late?.start);
+  const offDay = P.placeBlock({ ...base, off: true }, { id: 'c4', kind: 'personal', area: 'personal', title: 'Chess' }, 20, P.toMin('09:00'));
+  assert(offDay?.start === '09:00', 'on a day off there is no focus time to avoid: ' + offDay?.start);
   const other = P.placeBlock(base, { id: 'p', kind: 'personal', area: 'personal', title: 'Call mom' }, 20, P.toMin('09:00'));
   assert(other?.start === '16:00', 'other personal tasks still wait until after work: ' + other?.start);
+  const analysis = P.placeBlock(base, { id: 'a', kind: 'personal', area: 'personal', title: 'Analiza partii szachowych' }, 20, P.toMin('09:00'));
+  assert(analysis?.start === '16:00', 'a chess-related task that is not a session is an ordinary personal task: ' + analysis?.start);
+  const miss = P.missBlock({ blocks: [B('Chess', '08:00', '08:20', 'personal')] }, 'Chess', '', P.toMin('08:20'));
+  assert(miss.moved === '10:00', 'a missed chess session moves past the focus block: ' + miss.moved);
+  // habits never take up time and never move
+  const hp = { blocks: [B('pill', '10:00', '10:05', 'habit', { habitId: 'h' }), B('w', '08:00', '09:00', 'task', { area: 'work' })] };
+  const ph = P.placeBlock(hp, { id: 'n', kind: 'task', area: 'work', title: 'n' }, 30, P.toMin('09:45'));
+  assert(ph?.start === '09:45', 'a habit reminder does not block the slot it sits in: ' + ph?.start);
+  assert(P.missBlock(hp, 'pill', '', P.toMin('10:10')).moved === null, 'a missed habit gets no copy');
+  const hr = P.replanFrom(hp, P.toMin('11:00'));
+  assert(hr.plan.blocks.find((b) => b.id === 'pill')?.start === '10:00' && hr.plan.blocks.find((b) => b.id === 'pill').status === 'planned', 'replan leaves habit reminders alone');
   process.exitCode = failed ? 1 : 0;
 }
 
@@ -72,16 +85,30 @@ process.exitCode = failed ? 1 : 0;
   const T = (id, title, area, extra = {}) => ({ id, title, area, done: false, prio: 0, created: 1, due: date, ...extra });
   const overlaps = (p) => p.blocks.some((a, i) => p.blocks.some((b, j) => j > i && P.toMin(a.start) < P.toMin(b.end) && P.toMin(b.start) < P.toMin(a.end)));
   const empty = buildPlan({ date });
-  assert(empty.plan.blocks.map((b) => `${b.start} ${b.id}`).join() === '08:00 breakfast,10:00 light,14:00 lunch', 'a work day with nothing in it gets breakfast at 8:00, the light half hour and lunch: ' + empty.plan.blocks.map((b) => `${b.start} ${b.id}`));
+  assert(empty.plan.blocks.map((b) => `${b.start} ${b.id}`).join() === '08:00 breakfast,10:00 chess1,12:00 chess2,14:00 lunch', 'a work day with nothing in it gets breakfast at 8:00, two chess sessions outside focus time and lunch: ' + empty.plan.blocks.map((b) => `${b.start} ${b.id}`));
+  const busy = buildPlan({ date, meetings: [{ title: 'M', start: '10:00', end: '10:30' }] });
+  assert(busy.plan.blocks.find((b) => b.id === 'light') === undefined && busy.plan.blocks.find((b) => b.id === 'chess1')?.start === '12:00', 'no light half hour left: chess goes after the focus blocks: ' + busy.plan.blocks.find((b) => b.id === 'chess1')?.start);
   const b2b = buildPlan({ date, meetings: [{ title: 'A', start: '09:00', end: '10:00' }, { title: 'B', start: '10:00', end: '11:00' }, { title: 'Long', start: '12:30', end: '15:00' }], tasks: [T('huge', 'Huge', 'work', { dur: 240 }), T('s', 'Small', 'work', { dur: 30 })] });
   assert(!overlaps(b2b.plan), 'back-to-back meetings: nothing overlaps');
   assert(b2b.plan.blocks.find((b) => b.id === 'lunch')?.start === '15:00', 'lunch slides past a meeting that sits on it: ' + b2b.plan.blocks.find((b) => b.id === 'lunch')?.start);
   assert(b2b.overflow.some((o) => o.task.id === 'huge'), 'a task longer than any gap is listed as overflow');
   assert(!b2b.plan.blocks.some((b) => b.id === 'p2'), 'no prep squeezed between back-to-back meetings');
-  const chess = buildPlan({ date, tasks: [T('c', 'Chess', 'personal', { dur: 20 }), T('w', 'Report', 'work', { prio: 3 })] });
-  const cb = chess.plan.blocks.find((b) => b.taskId === 'c');
-  assert(cb && P.toMin(cb.start) >= P.toMin('11:00') && P.toMin(cb.end) <= P.toMin('16:00') && !overlaps(chess.plan), 'chess goes inside work hours after 11:00: ' + cb?.start);
+  const chess = buildPlan({ date, tasks: [T('c', 'Chess', 'personal', { dur: 20 }), T('w', 'Report', 'work', { prio: 3 }), T('w2', 'Analiza', 'work', { prio: 3 }), T('w3', 'Mail', 'work', { dur: 25 })] });
+  const cs = chess.plan.blocks.filter((b) => P.isChess(b.title));
+  const inFocus = (b) => P.FOCUS.some(([a, e]) => P.toMin(b.start) < P.toMin(e) && P.toMin(a) < P.toMin(b.end));
+  assert(cs.length === 2 && cs.every((b) => P.dur(b) === 20 && !inFocus(b)) && !overlaps(chess.plan), 'two 20-minute chess sessions a day, never in the focus blocks: ' + cs.map((b) => b.start));
+  assert(cs[0].taskId === 'c' && !cs[1].taskId, 'a "Chess" task becomes one of the sessions, the other is a plain block');
+  assert(P.toMin(cs[1].start) - P.toMin(cs[0].end) >= 60, 'chess sessions are an hour apart');
   assert(chess.plan.blocks.every((b) => b.cal === true), 'every planned block is marked as in the calendar');
+  // habits: untimed ones get no block; timed ones are a reminder at their time that blocks nothing
+  const hb = buildPlan({ date, habits: [{ id: 'r', title: 'Czytanie' }, { id: 'fe', title: '10:00 żelazo' }], tasks: [T('l', 'Mail', 'work', { dur: 30 })] });
+  assert(!hb.plan.blocks.some((b) => b.habitId === 'r'), 'a habit without a time takes no time in the plan');
+  assert(hb.plan.blocks.find((b) => b.habitId === 'fe')?.start === '10:00' && hb.plan.blocks.find((b) => b.taskId === 'l')?.start === '10:00', 'a timed habit is a reminder at its time; a task can sit in the same slot');
+  // a breakfast the user added replaces the 8:00 one
+  const own = buildPlan({ date, tasks: [T('s', '8:30 śniadanie', 'work')] });
+  assert(!own.plan.blocks.some((b) => b.id === 'breakfast') && own.plan.blocks.find((b) => b.taskId === 's')?.start === '08:30' && own.plan.blocks.find((b) => b.taskId === 's').kind === 'personal', 'a breakfast task at 8:30 replaces the planner breakfast and stays at its time: ' + own.plan.blocks.map((b) => `${b.start} ${b.id}`));
+  const ownCal = buildPlan({ date, meetings: [{ title: 'Śniadanie z Anią', start: '09:00', end: '10:00' }] });
+  assert(!ownCal.plan.blocks.some((b) => b.id === 'breakfast' || b.kind === 'prep'), 'a breakfast in the calendar replaces the planner breakfast and gets no prep');
   // personal tasks due that day are never cut by the evening limit (the dog walk went missing on 2026-11-24)
   const eve = buildPlan({ date, tasks: [T('v', 'Vinted', 'personal', { dur: 60 }), T('p', 'Plan', 'personal', { dur: 30 }), T('d', 'Spacer z psem', 'personal', { dur: 60 }), T('s', 'Sprzątanie', 'personal', { dur: 30 }), T('later', 'Someday', 'personal', { dur: 30, due: null })] });
   assert(['v', 'p', 'd', 's'].every((id) => eve.plan.blocks.some((b) => b.taskId === id)) && !overlaps(eve.plan), 'every personal task due that day gets a block, even over the evening limit');
@@ -103,8 +130,9 @@ process.exitCode = failed ? 1 : 0;
   // a day off
   const off = buildPlan({ date, off: true, meetings: [{ title: 'Fryzjer', start: '11:00', end: '11:45' }], tasks: [T('m', 'Wyciągnąć rano mięso', 'personal'), T('w', 'Report', 'work', { dur: 60 }), T('d', '13:00 Spacer z psem', 'personal', { dur: 60 }), T('v', 'Vinted', 'personal', { dur: 60 })], habits: [{ id: 'fe', title: '8:00 żelazo' }] });
   const ob = (id) => off.plan.blocks.find((b) => b.taskId === id || b.id === id);
-  assert(off.plan.off === true && !overlaps(off.plan), 'day off: plan is marked off, nothing overlaps');
-  assert(ob('breakfast')?.start === '08:05', 'day off: breakfast right after the morning things: ' + ob('breakfast')?.start);
+  assert(off.plan.off === true && !overlaps({ blocks: off.plan.blocks.filter((b) => b.kind !== 'habit') }), 'day off: plan is marked off, nothing overlaps (habit reminders aside)');
+  assert(ob('breakfast')?.start === '08:00', 'day off: breakfast right after the morning things: ' + ob('breakfast')?.start);
+  assert(off.plan.blocks.filter((b) => P.isChess(b.title)).length === 2, 'day off: chess twice too');
   assert(ob('d')?.start === '13:00', 'a task with a time in its title goes at that time: ' + ob('d')?.start);
   assert(P.toMin(ob('v')?.start) < P.toMin('12:00'), 'day off: personal tasks go in the morning, not after 16:30: ' + ob('v')?.start);
   assert(!ob('w') && off.overflow.some((o) => o.task.id === 'w' && o.why === 'day off'), 'day off: work tasks wait and are listed');
